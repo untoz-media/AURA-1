@@ -9,12 +9,15 @@
 
 ## M002 — AURA-Dataset v0.1
 
-- [ ] Define dataset schema
-- [ ] Collect legally usable sources
-- [ ] Curate Portuguese and English examples
-- [ ] Add coding, reasoning and writing examples
-- [ ] Deduplicate and validate
-- [ ] Publish dataset documentation
+- [x] Define dataset schema
+- [x] Establish provenance and licensing metadata
+- [x] Build deterministic generation/validation pipeline
+- [x] Add quality checks and deduplication
+- [x] Curate first Portuguese and English corpus
+- [x] Add coding, reasoning, writing, knowledge, tool-use and AURA-behaviour examples
+- [x] Publish dataset documentation
+- [ ] Expand corpus with reviewed external datasets and/or substantially more original examples
+- [ ] Final dataset validation and train/eval split
 
 ## M003 — First QLoRA Training
 
