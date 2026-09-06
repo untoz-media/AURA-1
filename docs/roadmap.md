@@ -21,8 +21,8 @@
 
 ## M003 — First QLoRA Training
 
-- [ ] Profile dataset
-- [ ] Finalize training configuration
+- [x] Profile dataset
+- [x] Finalize training configuration
 - [ ] Run first experiment
 - [ ] Record metrics and hardware
 - [ ] Save adapter/checkpoint artifacts
