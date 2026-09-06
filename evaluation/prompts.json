@@ -1,0 +1,26 @@
+[
+  {
+    "id": "pt-001",
+    "category": "portuguese",
+    "prompt": "Responde em português de Portugal: O que é inteligência artificial?",
+    "expected_properties": ["European Portuguese", "clear explanation"]
+  },
+  {
+    "id": "en-001",
+    "category": "english",
+    "prompt": "Explain what a language model is in simple terms.",
+    "expected_properties": ["accuracy", "clarity"]
+  },
+  {
+    "id": "code-001",
+    "category": "coding",
+    "prompt": "Write a Python function that returns the larger of two numbers.",
+    "expected_properties": ["valid Python", "correct logic"]
+  },
+  {
+    "id": "reasoning-001",
+    "category": "reasoning",
+    "prompt": "If a train leaves at 10:00 and travels for 2 hours and 30 minutes, when does it arrive?",
+    "expected_properties": ["correct arithmetic"]
+  }
+]

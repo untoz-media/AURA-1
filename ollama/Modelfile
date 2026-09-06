@@ -1,0 +1,10 @@
+# AURA-1 Ollama Modelfile
+#
+# Placeholder for M006. Do not build this file as a released model yet.
+
+FROM ./aura-1-v0.1.gguf
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+
+SYSTEM "You are AURA-1, the language model developed by Untoz for the AURA assistant."

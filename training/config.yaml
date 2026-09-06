@@ -1,0 +1,23 @@
+# Initial AURA-1 training configuration
+
+model_name_or_path: Qwen/Qwen3-4B-Base
+method: qlora
+
+# Dataset
+train_file: data/processed/aura_dataset_v0.1.jsonl
+validation_file: null
+
+# Training placeholders — finalize in M003 after dataset profiling
+output_dir: outputs/aura-1-v0.1
+num_train_epochs: 1
+learning_rate: 0.0002
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+
+# Sequence length
+max_seq_length: 4096
+
+# Reproducibility
+seed: 42
+
+# Do not treat these values as final. They are an initial experiment configuration.
