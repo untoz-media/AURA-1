@@ -10,6 +10,7 @@ permissions:
   contents: read
   issues: write
   pull-requests: write
+  checks: write
 
 jobs:
   report:
@@ -27,12 +28,11 @@ jobs:
               const sha = context.payload.after;
               const commit = await github.rest.repos.getCommit({ owner: repo.owner, repo: repo.repo, ref: sha });
               const files = (commit.data.files || []).map(f => '- ' + f.filename + ' — ' + f.status).join('\n') || '- No file list available.';
-              const body = [marker, '## 🤖 Untoz Bot', '', '**Commit detected**', '', '- Repository: ' + repo.owner + '/' + repo.repo, '- Commit: ' + sha.slice(0, 7), '- Message: ' + commit.data.commit.message.split('\n')[0], '', '### Changed files', files, '', '🟢 Untoz Bot detected and recorded this change.'].join('\n');
-              await github.rest.repos.createCommitComment({ owner: repo.owner, repo: repo.repo, commit_sha: sha, body });
+              const summary = 'Commit detected in ' + repo.owner + '/' + repo.repo + '\n\n' + commit.data.commit.message.split('\n')[0] + '\n\nChanged files: ' + (commit.data.files || []).length + '\n\n' + files;
+              await github.rest.checks.create({ owner: repo.owner, repo: repo.repo, name: 'Untoz Bot', head_sha: sha, status: 'completed', conclusion: 'success', output: { title: 'Untoz Bot — change detected', summary } });
               return;
             }
-            const pr = context.payload.pull_request;
-            const number = pr.number;
+            const pr = context.payload.pull_request; const number = pr.number;
             const files = await github.paginate(github.rest.pulls.listFiles, { owner: repo.owner, repo: repo.repo, pull_number: number, per_page: 100 });
             const summary = files.slice(0, 50).map(f => '- ' + f.filename + ' — ' + f.status).join('\n') || '- No changed files reported.';
             const extra = files.length > 50 ? '\n- …and ' + (files.length - 50) + ' more files.' : '';
