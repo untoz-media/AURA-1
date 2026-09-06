@@ -1,4 +1,4 @@
-# Initial AURA-1 training configuration
+# AURA-1 M003 first QLoRA experiment
 
 model_name_or_path: Qwen/Qwen3-4B-Base
 method: qlora
@@ -7,17 +7,30 @@ method: qlora
 train_file: data/processed/aura_dataset_v0.1.jsonl
 validation_file: null
 
-# Training placeholders — finalize in M003 after dataset profiling
+# Training
 output_dir: outputs/aura-1-v0.1
+smoke_test_output_dir: outputs/aura-1-m003-smoke
 num_train_epochs: 1
 learning_rate: 0.0002
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 8
+save_steps: 10
 
 # Sequence length
 max_seq_length: 4096
 
+# QLoRA quantization
+quantization:
+  type: nf4
+  double_quant: true
+
+# LoRA
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+
 # Reproducibility
 seed: 42
 
-# Do not treat these values as final. They are an initial experiment configuration.
+# This is an initial experiment configuration, not a final production recipe.
