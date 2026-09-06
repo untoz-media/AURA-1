@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AURA Dataset Record",
+  "description": "Schema for a single AURA-Dataset v0.1 training example.",
+  "type": "object",
+  "required": ["id", "language", "category", "messages", "source", "license"],
+  "properties": {
+    "id": {"type": "string"},
+    "language": {"type": "string", "enum": ["pt-PT", "en", "multilingual"]},
+    "category": {"type": "string"},
+    "messages": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {"type": "string", "enum": ["system", "user", "assistant"]},
+          "content": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "source": {"type": "string"},
+    "license": {"type": "string"},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}
