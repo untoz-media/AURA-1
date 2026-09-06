@@ -1,0 +1,9 @@
+{
+  "dataset_version": "AURA-Dataset-v0.1",
+  "licenses": {
+    "CC0-1.0": {
+      "status": "approved-for-synthetic-examples",
+      "notes": "Used for repository-authored synthetic examples. Any external dataset must be reviewed separately before inclusion."
+    }
+  }
+}
