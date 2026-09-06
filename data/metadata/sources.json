@@ -1,0 +1,11 @@
+{
+  "dataset_version": "AURA-Dataset-v0.1",
+  "sources": [
+    {
+      "source_id": "synthetic",
+      "description": "Examples authored specifically for AURA-1 dataset development.",
+      "license": "CC0-1.0",
+      "redistribution": true
+    }
+  ]
+}
