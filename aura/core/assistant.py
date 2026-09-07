@@ -10,7 +10,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
-from aura.tools import CalculatorTool, DateTimeTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
+from aura.tools import CalculatorTool, DateTimeTool, SystemInfoTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
 
 
 class AuraAssistant:
@@ -34,6 +34,7 @@ class AuraAssistant:
         self.tool_router = ToolRouter()
         self.register_tool(CalculatorTool())
         self.register_tool(DateTimeTool())
+        self.register_tool(SystemInfoTool())
 
     def chat(self, message: str) -> str:
         """Send one user message to AURA and return its response."""
