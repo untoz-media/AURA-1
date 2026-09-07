@@ -7,7 +7,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
-from aura.tools import CalculatorTool, Tool, ToolRegistry
+from aura.tools import CalculatorTool, Tool, ToolRegistry, ToolResult
 
 
 class AuraAssistant:
@@ -50,6 +50,10 @@ class AuraAssistant:
         """Run one explicitly selected registered tool."""
         return self.tools.run(name, **kwargs)
 
+    def execute_tool(self, name: str, **kwargs) -> ToolResult:
+        """Safely execute one tool and return a normalized result."""
+        return self.tools.execute(name, **kwargs)
+
     def remember(
         self,
         key: str,
@@ -73,7 +77,7 @@ class AuraAssistant:
         return self.persistent_memory.search(query)
 
     def forget(self, key: str) -> bool:
-        """Forget one persistent memory."""
+        """Forget one memory."""
         return self.persistent_memory.delete(key)
 
     def clear_persistent_memory(self) -> None:
