@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from aura.config import AuraConfig
 from aura.memory.conversation import ConversationMemory
-from aura.memory.persistent import PersistentMemory
+from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
 
@@ -35,16 +35,30 @@ class AuraAssistant:
         self.memory.add_assistant(response)
         return response
 
-    def remember(self, key: str, value: str) -> None:
-        """Store a user-approved persistent memory."""
-        self.persistent_memory.set(key, value)
+    def remember(
+        self,
+        key: str,
+        value: str,
+        category: str = "general",
+        importance: int = 3,
+    ) -> None:
+        """Store a user-approved structured persistent memory."""
+        self.persistent_memory.set(key, value, category, importance)
 
     def recall(self, key: str) -> str | None:
-        """Retrieve one persistent memory entry."""
+        """Retrieve one memory value."""
         return self.persistent_memory.get(key)
 
+    def recall_entry(self, key: str) -> MemoryEntry | None:
+        """Retrieve one complete memory entry."""
+        return self.persistent_memory.get_entry(key)
+
+    def search_memory(self, query: str) -> dict[str, MemoryEntry]:
+        """Search persistent memory."""
+        return self.persistent_memory.search(query)
+
     def forget(self, key: str) -> bool:
-        """Forget one persistent memory entry."""
+        """Forget one persistent memory."""
         return self.persistent_memory.delete(key)
 
     def clear_persistent_memory(self) -> None:
