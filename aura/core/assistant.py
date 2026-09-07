@@ -10,7 +10,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
-from aura.tools import CalculatorTool, DateTimeTool, FileTool, SystemInfoTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
+from aura.tools import CalculatorTool, DateTimeTool, FileTool, StorageAnalyzerTool, SystemInfoTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
 
 
 class AuraAssistant:
@@ -35,6 +35,7 @@ class AuraAssistant:
         self.register_tool(CalculatorTool())
         self.register_tool(DateTimeTool())
         self.register_tool(SystemInfoTool())
+        self.register_tool(StorageAnalyzerTool())
         self.register_tool(FileTool())
 
     def chat(self, message: str) -> str:
