@@ -1,6 +1,16 @@
 # AURA-1
 
-> **AI that lives on your computer.**
+<p align="center">
+  <img src="assets/aura-mark.svg" alt="AURA mark" width="220" />
+</p>
+
+<p align="center">
+  <strong>AI that lives on your computer.</strong>
+</p>
+
+<p align="center">
+  <a href="https://aura.untoz.site/">Official website</a>
+</p>
 
 **AURA-1** is a local-first personal AI assistant and experimental AI project developed by **Untoz**.
 
@@ -72,6 +82,7 @@ A separately trained AURA-1 model is planned as a future project milestone.
 | **Name** | AURA-1 |
 | **Developer** | Untoz |
 | **Project family** | AURA |
+| **Website** | [aura.untoz.site](https://aura.untoz.site/) |
 | **Current release** | Alpha 0.1 |
 | **Release type** | Public pre-release |
 | **Architecture** | Local-first personal AI assistant |
@@ -215,6 +226,8 @@ AURA-1/
 ├── aura.py
 ├── aura_web.py
 ├── aura/
+├── assets/
+│   └── aura-mark.svg
 ├── data/
 │   ├── raw/
 │   ├── processed/
