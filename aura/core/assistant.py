@@ -60,7 +60,7 @@ class AuraAssistant:
         return response
 
     def _build_runtime_context(self, message: str) -> list[dict[str, str]]:
-        """Build the temporary model context with only relevant persistent memories."""
+        """Build temporary model context with relevant persistent memories."""
         memories = self._relevant_memories(message)
         if not memories:
             return list(self.memory.messages)
@@ -80,16 +80,23 @@ class AuraAssistant:
         return context
 
     def _relevant_memories(self, message: str, limit: int = 5) -> list[tuple[str, MemoryEntry]]:
-        """Return a small ranked set of memories related to the current message."""
+        """Return a small ranked set of memories related to the current or recent topic."""
         if not self.persistent_memory.data:
             return []
 
-        query_tokens = self._memory_tokens(message)
+        query_parts = [message]
+        for item in reversed(self.memory.messages[:-1]):
+            if item.get("role") == "user":
+                query_parts.append(item.get("content", ""))
+                if len(query_parts) >= 3:
+                    break
+
+        query_tokens = self._memory_tokens(" ".join(query_parts))
         if not query_tokens:
             return []
 
         scored: list[tuple[float, int, str, MemoryEntry]] = []
-        normalized_query = self._normalize_text(message)
+        normalized_query = self._normalize_text(" ".join(query_parts))
 
         for key, entry in self.persistent_memory.data.items():
             key_tokens = self._memory_tokens(key, include_stopwords=True)
@@ -104,7 +111,7 @@ class AuraAssistant:
             score = float(len(overlap))
             if key_tokens and query_tokens.issubset(key_tokens):
                 score += 3.0
-            if key.lower().strip() in message.lower():
+            if key.lower().strip() in " ".join(query_parts).lower():
                 score += 4.0
             if self._normalize_text(key) in normalized_query:
                 score += 2.0
@@ -122,11 +129,7 @@ class AuraAssistant:
         tokens = set(re.findall(r"[a-z0-9]+", cls._normalize_text(text)))
         if include_stopwords:
             return tokens
-        return {
-            token
-            for token in tokens
-            if len(token) >= 3 and token not in cls._MEMORY_STOPWORDS
-        }
+        return {token for token in tokens if len(token) >= 3 and token not in cls._MEMORY_STOPWORDS}
 
     @staticmethod
     def _normalize_text(text: str) -> str:
