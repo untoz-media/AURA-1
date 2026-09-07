@@ -4,23 +4,34 @@ from aura.core.assistant import AuraAssistant
 from aura.profiles import PROFILE_LABELS
 
 
+CATEGORY_LABELS = {
+    "general": "Geral",
+    "profile": "Perfil",
+    "preference": "Preferência",
+    "project": "Projeto",
+    "fact": "Facto",
+}
+
+
 def print_help() -> None:
     """Show the commands available in the AURA-1 CLI."""
     print(
         "\nComandos AURA-1:\n"
-        "  /help                 — mostrar esta ajuda\n"
-        "  /clear                — limpar a memória da conversa atual\n"
-        "  /remember K V         — guardar uma memória persistente\n"
-        "  /memory               — mostrar as memórias persistentes\n"
-        "  /forget K             — apagar uma memória persistente\n"
-        "  /clear-memory         — apagar todas as memórias persistentes\n"
-        "  /settings             — mostrar as definições atuais\n"
-        "  /set K V              — alterar uma definição\n"
-        "  /reset-settings       — repor as definições de origem\n"
-        "  /profiles             — mostrar os perfis disponíveis\n"
-        "  /profile NOME         — selecionar um perfil\n"
-        "  /info                 — mostrar o estado atual do AURA-1\n"
-        "  /exit                 — terminar o AURA-1\n"
+        "  /help                         — mostrar esta ajuda\n"
+        "  /clear                        — limpar a memória da conversa atual\n"
+        "  /remember K V                 — guardar uma memória persistente\n"
+        "  /remember K V | CATEGORIA | N — guardar memória com categoria e importância\n"
+        "  /memory                       — mostrar as memórias persistentes\n"
+        "  /memory-search TEXTO          — pesquisar nas memórias persistentes\n"
+        "  /forget K                     — apagar uma memória persistente\n"
+        "  /clear-memory                 — apagar todas as memórias persistentes\n"
+        "  /settings                     — mostrar as definições atuais\n"
+        "  /set K V                      — alterar uma definição\n"
+        "  /reset-settings               — repor as definições de origem\n"
+        "  /profiles                     — mostrar os perfis disponíveis\n"
+        "  /profile NOME                 — selecionar um perfil\n"
+        "  /info                         — mostrar o estado atual do AURA-1\n"
+        "  /exit                         — terminar o AURA-1\n"
     )
 
 
@@ -86,6 +97,70 @@ def parse_setting_value(raw: str, current):
     return raw
 
 
+def parse_remember_payload(payload: str):
+    """Parse simple or extended /remember syntax."""
+    parts = [part.strip() for part in payload.split("|")]
+    if not parts or not parts[0]:
+        return None
+
+    first = parts[0].split(maxsplit=1)
+    if len(first) != 2:
+        return None
+
+    key, value = first
+    category = "general"
+    importance = 3
+
+    if len(parts) >= 2 and parts[1]:
+        category = parts[1].lower()
+    if len(parts) >= 3 and parts[2]:
+        try:
+            importance = int(parts[2])
+        except ValueError:
+            return None
+    if len(parts) > 3:
+        return None
+
+    return key, value, category, importance
+
+
+def print_memory_entry(key: str, entry) -> None:
+    """Print one structured memory entry."""
+    category = CATEGORY_LABELS.get(entry.category, entry.category)
+    stars = "★" * entry.importance + "☆" * (5 - entry.importance)
+    print(f"  {key} = {entry.value}")
+    print(f"    Categoria: {category} | Importância: {stars}")
+
+
+def print_persistent_memory(assistant: AuraAssistant) -> None:
+    """Show persistent memory entries grouped by category."""
+    memories = assistant.persistent_memory.data
+    if not memories:
+        print("AURA: Não tenho memórias persistentes guardadas.")
+        return
+
+    print("\nAURA — Memória persistente")
+    for category in CATEGORY_LABELS:
+        entries = [(key, entry) for key, entry in memories.items() if entry.category == category]
+        if not entries:
+            continue
+        print(f"\n[{CATEGORY_LABELS[category]}]")
+        for key, entry in sorted(entries, key=lambda item: (-item[1].importance, item[0])):
+            print_memory_entry(key, entry)
+
+
+def print_memory_search(assistant: AuraAssistant, query: str) -> None:
+    """Show matching persistent memories."""
+    matches = assistant.search_memory(query)
+    if not matches:
+        print(f"AURA: Não encontrei memórias para '{query}'.")
+        return
+
+    print(f"\nAURA — Resultados para '{query}'")
+    for key, entry in sorted(matches.items(), key=lambda item: (-item[1].importance, item[0])):
+        print_memory_entry(key, entry)
+
+
 def main() -> None:
     print("=" * 60)
     print("AURA-1")
@@ -148,6 +223,14 @@ def main() -> None:
             print_persistent_memory(assistant)
             continue
 
+        if command.startswith("/memory-search "):
+            query = message[len("/memory-search ") :].strip()
+            if not query:
+                print("AURA: Usa /memory-search TEXTO")
+                continue
+            print_memory_search(assistant, query)
+            continue
+
         if command == "/clear-memory":
             assistant.clear_persistent_memory()
             print("AURA: Todas as memórias persistentes foram apagadas.")
@@ -189,13 +272,18 @@ def main() -> None:
 
         if command.startswith("/remember "):
             payload = message[len("/remember ") :].strip()
-            parts = payload.split(maxsplit=1)
-            if len(parts) != 2:
-                print("AURA: Usa /remember CHAVE VALOR")
+            parsed = parse_remember_payload(payload)
+            if parsed is None:
+                print("AURA: Usa /remember CHAVE VALOR ou /remember CHAVE VALOR | CATEGORIA | IMPORTÂNCIA")
                 continue
-            key, value = parts
-            assistant.remember(key, value)
+            key, value, category, importance = parsed
+            try:
+                assistant.remember(key, value, category, importance)
+            except ValueError as exc:
+                print(f"AURA: {exc}")
+                continue
             print(f"AURA: Memória guardada — {key} = {value}")
+            print(f"AURA: Categoria: {category} | Importância: {importance}/5")
             continue
 
         if command.startswith("/forget "):
@@ -216,18 +304,6 @@ def main() -> None:
             continue
 
         print(f"AURA: {response}")
-
-
-def print_persistent_memory(assistant: AuraAssistant) -> None:
-    """Show persistent memory entries."""
-    memories = assistant.persistent_memory.data
-    if not memories:
-        print("AURA: Não tenho memórias persistentes guardadas.")
-        return
-
-    print("\nAURA — Memória persistente")
-    for key, value in memories.items():
-        print(f"  {key} = {value}")
 
 
 if __name__ == "__main__":
