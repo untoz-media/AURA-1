@@ -7,6 +7,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
+from aura.tools import Tool, ToolRegistry
 
 
 class AuraAssistant:
@@ -18,6 +19,7 @@ class AuraAssistant:
         self.memory = ConversationMemory(max_messages=self.config.max_history_messages)
         self.persistent_memory = PersistentMemory()
         self.runtime = QwenRuntime(self.config)
+        self.tools = ToolRegistry()
 
     def chat(self, message: str) -> str:
         """Send one user message to AURA and return its response."""
@@ -34,6 +36,18 @@ class AuraAssistant:
 
         self.memory.add_assistant(response)
         return response
+
+    def register_tool(self, tool: Tool) -> None:
+        """Register one tool available to the assistant."""
+        self.tools.register(tool)
+
+    def list_tools(self) -> tuple[Tool, ...]:
+        """Return all registered tools."""
+        return self.tools.list_tools()
+
+    def run_tool(self, name: str, **kwargs):
+        """Run one explicitly selected registered tool."""
+        return self.tools.run(name, **kwargs)
 
     def remember(
         self,
