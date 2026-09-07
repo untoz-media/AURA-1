@@ -25,6 +25,8 @@ def print_help() -> None:
         "  /memory-search TEXTO          — pesquisar nas memórias persistentes\n"
         "  /forget K                     — apagar uma memória persistente\n"
         "  /clear-memory                 — apagar todas as memórias persistentes\n"
+        "  /tools                        — mostrar as tools disponíveis\n"
+        "  /tool calculator EXPRESSÃO    — executar a calculadora\n"
         "  /settings                     — mostrar as definições atuais\n"
         "  /set K V                      — alterar uma definição\n"
         "  /reset-settings               — repor as definições de origem\n"
@@ -46,6 +48,7 @@ def print_info(assistant: AuraAssistant) -> None:
         f"Perfil: {profile}\n"
         f"Memória de conversa: ativa ({len(assistant.memory.messages)} mensagens)\n"
         f"Memórias persistentes: {len(assistant.persistent_memory.data)}\n"
+        f"Tools disponíveis: {len(assistant.list_tools())}\n"
         f"Contexto máximo: {config.max_history_messages} mensagens\n"
         f"Pensamento: {'ativo' if config.enable_thinking else 'desativado'}\n"
         f"Máximo de tokens: {config.max_new_tokens}\n"
@@ -73,6 +76,30 @@ def print_settings(assistant: AuraAssistant) -> None:
             print(f"  {key} = {value}")
     print(f"  active_profile = {assistant.settings.active_profile}")
     print("\nNota: algumas definições só têm efeito ao reiniciar o AURA-1.")
+
+
+def print_tools(assistant: AuraAssistant) -> None:
+    """Show registered tools."""
+    tools = assistant.list_tools()
+    print("\nAURA-1 — Tools disponíveis")
+    if not tools:
+        print("  Nenhuma tool registada.")
+        return
+    for tool in tools:
+        print(f"  {tool.name} — {tool.description}")
+
+
+def parse_tool_command(payload: str):
+    """Parse an explicit calculator tool command."""
+    parts = payload.split(maxsplit=1)
+    if len(parts) != 2:
+        return None
+    return parts[0], parts[1].strip()
+
+
+def print_tool_result(tool_name: str, result) -> None:
+    """Print one tool result."""
+    print(f"AURA: Resultado de {tool_name}: {result}")
 
 
 def parse_setting_value(raw: str, current):
@@ -196,6 +223,24 @@ def main() -> None:
 
         if command == "/info":
             print_info(assistant)
+            continue
+
+        if command == "/tools":
+            print_tools(assistant)
+            continue
+
+        if command.startswith("/tool "):
+            parsed = parse_tool_command(message[len("/tool ") :].strip())
+            if parsed is None:
+                print("AURA: Usa /tool calculator EXPRESSÃO")
+                continue
+            tool_name, expression = parsed
+            try:
+                result = assistant.run_tool(tool_name, expression=expression)
+            except (KeyError, ValueError) as exc:
+                print(f"AURA: {exc}")
+                continue
+            print_tool_result(tool_name, result)
             continue
 
         if command == "/profiles":
