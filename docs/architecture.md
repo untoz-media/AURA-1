@@ -41,7 +41,7 @@ HTML gerado pelo modelo.
 
 1. **Local-first** — prioritize practical local inference.
 2. **Efficient** — keep the model small enough for accessible hardware.
-3. **Portuguese-first quality** — specifically evaluate European Portuguese.
+3. **English-first, multilingual** — use English by default and specifically support European Portuguese.
 4. **Reproducible** — version datasets, configurations and evaluation results.
 5. **Open development** — publish useful code and documentation where licensing permits.
 

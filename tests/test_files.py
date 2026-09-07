@@ -58,6 +58,9 @@ def test_registry_normalizes_errors(tmp_path):
     ('Lista os ficheiros da pasta "Documentação"', "list", "Documentação"),
     ('Existe um ficheiro chamado "Olá.txt"?', "exists", "Olá.txt"),
     ("Existe o ficheiro README.md?", "exists", "README.md"),
+    ("What files are in this folder?", "list", "."),
+    ('List the files in the folder "docs"', "list", "docs"),
+    ("Does the file README.md exist?", "exists", "README.md"),
 ])
 def test_routing(text, action, path):
     call = ToolRouter().route(text)
@@ -82,5 +85,5 @@ def test_chat_integration(monkeypatch, tmp_path):
     assert "'exists': True" in assistant.runtime.calls[0][1]["content"]
     assert len(assistant.memory.messages) == 2
     response = assistant.chat("Lista os ficheiros da pasta ../outside")
-    assert "Não consegui" in response
+    assert "couldn't complete" in response
     assert len(assistant.runtime.calls) == 1

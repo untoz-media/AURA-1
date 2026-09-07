@@ -27,7 +27,7 @@ and the read-only local tools included in this repository.
 ## Intended use
 
 - Local personal assistance
-- Portuguese and English conversation
+- English-first conversation with Portuguese support
 - Writing, explanations and general instruction following
 - Safe arithmetic, date/time and system information
 - Controlled file-name discovery inside the project

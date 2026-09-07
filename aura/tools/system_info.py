@@ -55,7 +55,7 @@ class SystemInfoTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="system_info",
-            description="Obtém informação básica e segura sobre o sistema local.",
+            description="Returns basic, read-only information about the local system.",
         )
 
     def run(self, **kwargs) -> dict[str, str | int | float]:

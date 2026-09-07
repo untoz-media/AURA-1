@@ -14,8 +14,8 @@ project developed by **Untoz**.
 - **Current runtime model:** Qwen3-4B-Instruct-2507
 - **Target size:** ~4B parameters
 - **Initial fine-tuning approach:** QLoRA
-- **Primary language:** Portuguese (European Portuguese)
-- **Secondary language:** English
+- **Primary language:** English
+- **Additional language:** Portuguese (European Portuguese)
 - **Runtime target:** Ollama / local inference
 - **Current release:** AURA-1 0.1.0-alpha.1 application
 - **Future model release:** separately trained AURA-1 artifact

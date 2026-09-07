@@ -11,7 +11,7 @@ class FileTool(Tool):
     """List names and check existence without reading file contents."""
 
     def __init__(self, root: str | Path | None = None):
-        super().__init__("files", "Lista ficheiros e verifica a sua existência dentro do projeto.")
+        super().__init__("files", "Lists files and checks their existence inside the project.")
         object.__setattr__(self, "root", Path(root or Path(__file__).resolve().parents[2]).resolve())
 
     def _path(self, value: str) -> Path:

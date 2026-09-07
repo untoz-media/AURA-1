@@ -15,7 +15,7 @@ class DateTimeTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="datetime",
-            description="Consulta a data e hora atuais, incluindo fusos horários.",
+            description="Returns the current date and time, including time zones.",
         )
 
     def run(self, action: str = "now", timezone: str = "Europe/Lisbon", **kwargs: Any) -> str:

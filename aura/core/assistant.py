@@ -143,17 +143,18 @@ class AuraAssistant:
     def respond_to_tool_result(self, user_message: str, result: ToolResult) -> str:
         """Turn a successful routed tool result into a natural AURA response."""
         if not result.success:
-            return f"Não consegui obter o resultado: {result.error}"
+            return f"I couldn't complete that request: {result.error}"
 
         if result.tool_name == "system_info" and any(
             word in self._normalize_text(user_message) for word in ("ram", "memoria")
         ):
             def memory_label(value):
                 return f"{value} GB" if isinstance(value, (int, float)) else "desconhecida"
-            return (
-                f"RAM total: {memory_label(result.output.get('ram_total_gb'))}. "
-                f"RAM disponível neste momento: {memory_label(result.output.get('ram_disponivel_gb'))}."
-            )
+            total = memory_label(result.output.get('ram_total_gb'))
+            available = memory_label(result.output.get('ram_disponivel_gb'))
+            if any(word in self._normalize_text(user_message) for word in ("quanta", "tenho", "memoria", "disponivel")):
+                return f"RAM total: {total}. RAM disponível neste momento: {available}."
+            return f"Total RAM: {total}. RAM currently available: {available}."
 
         tool_data = (
             "DADOS AUTORITATIVOS DE UMA TOOL REGISTADA. "

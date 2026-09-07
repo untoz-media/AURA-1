@@ -44,6 +44,8 @@ def test_reject_arguments():
     "Que processador tenho?", "Qual é o meu CPU?",
     "Que sistema operativo estou a usar?", "Quantos núcleos lógicos tenho?",
     "Informação do sistema", "  QUANTA  RAM TENHO?!  ",
+    "How much RAM do I have?", "What processor do I have?",
+    "What operating system am I using?", "System information",
 ])
 def test_routes_system_questions(message):
     call = ToolRouter().route(message)
@@ -87,3 +89,14 @@ def test_assistant_registers_and_uses_system_info(monkeypatch, tmp_path):
     assert "system_info" in assistant.runtime.calls[0][1]["content"]
     assert "16.0" in assistant.runtime.calls[0][1]["content"]
     assert len(assistant.memory.messages) == 4
+
+
+def test_english_ram_response(monkeypatch):
+    from aura.core.assistant import AuraAssistant
+    from aura.tools import ToolRegistry
+    monkeypatch.setattr(system_info, "_memory_gb", lambda: (16.0, 6.0))
+    assistant = AuraAssistant.__new__(AuraAssistant)
+    registry = ToolRegistry()
+    registry.register(SystemInfoTool())
+    response = assistant.respond_to_tool_result("How much RAM do I have?", registry.execute("system_info"))
+    assert response == "Total RAM: 16.0 GB. RAM currently available: 6.0 GB."

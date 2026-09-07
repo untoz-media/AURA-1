@@ -35,7 +35,7 @@ class AuraWebApp:
             self.assistant = self.assistant_factory()
         except Exception:
             self.state = "error"
-            self.error = "Não foi possível carregar o modelo local. Consulta o terminal para mais detalhes."
+            self.error = "The local model could not be loaded. Check the terminal for details."
             raise
         else:
             self.state = "ready"
@@ -108,7 +108,7 @@ def _handler(app: AuraWebApp):
 
         def do_GET(self) -> None:
             if not self._trusted_request():
-                self._json(HTTPStatus.FORBIDDEN, {"error": "Pedido local inválido."})
+                self._json(HTTPStatus.FORBIDDEN, {"error": "Invalid local request."})
                 return
             path = urlsplit(self.path).path
             if path == "/api/status":
@@ -116,36 +116,36 @@ def _handler(app: AuraWebApp):
                 return
             static = {"/": "index.html", "/app.css": "app.css", "/app.js": "app.js"}.get(path)
             if static is None:
-                self._json(HTTPStatus.NOT_FOUND, {"error": "Não encontrado."})
+                self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
                 return
             types = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
             self._send(HTTPStatus.OK, (STATIC_ROOT / static).read_bytes(), types[Path(static).suffix])
 
         def do_POST(self) -> None:
             if not self._trusted_request():
-                self._json(HTTPStatus.FORBIDDEN, {"error": "Pedido local inválido."})
+                self._json(HTTPStatus.FORBIDDEN, {"error": "Invalid local request."})
                 return
             payload = self._read_json()
             if payload is None:
-                self._json(HTTPStatus.BAD_REQUEST, {"error": "Pedido inválido."})
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "Invalid request."})
                 return
             path = urlsplit(self.path).path
             if app.state != "ready" or app.assistant is None:
-                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "A AURA ainda está a carregar."})
+                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "AURA is still loading."})
                 return
             if path == "/api/chat":
                 message = payload.get("message")
                 if not isinstance(message, str) or not message.strip() or len(message) > MAX_MESSAGE_CHARS:
-                    self._json(HTTPStatus.BAD_REQUEST, {"error": "Escreve uma mensagem entre 1 e 4096 caracteres."})
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "Enter a message between 1 and 4096 characters."})
                     return
                 if not app.chat_lock.acquire(blocking=False):
-                    self._json(HTTPStatus.CONFLICT, {"error": "A AURA já está a responder."})
+                    self._json(HTTPStatus.CONFLICT, {"error": "AURA is already responding."})
                     return
                 try:
                     response = app.assistant.chat(message)
                 except Exception as exc:
                     print(f"[web] Falha ao responder: {type(exc).__name__}: {exc}")
-                    self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "Não consegui gerar a resposta."})
+                    self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "The response could not be generated."})
                 else:
                     self._json(HTTPStatus.OK, {"response": response})
                 finally:
@@ -155,7 +155,7 @@ def _handler(app: AuraWebApp):
                 app.assistant.clear_memory()
                 self._json(HTTPStatus.OK, {"ok": True})
                 return
-            self._json(HTTPStatus.NOT_FOUND, {"error": "Não encontrado."})
+            self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
 
     return Handler
 

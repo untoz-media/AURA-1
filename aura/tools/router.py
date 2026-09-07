@@ -20,6 +20,11 @@ class ToolRouter:
 
     _SYSTEM_INFO = re.compile(
         r"(?:quanta (?:memoria(?: ram)?|ram) tenho(?: disponivel)?|"
+        r"how much (?:ram|memory) do i have(?: available)?|"
+        r"how much (?:ram|memory) is available|"
+        r"what (?:processor|cpu) do i have|"
+        r"what (?:operating system|os) am i (?:using|running)|"
+        r"(?:system|computer|pc) information|"
         r"qual (?:e )?a (?:minha )?(?:memoria ram|ram)(?: disponivel)?|"
         r"(?:que|qual) (?:e o meu )?(?:processador|cpu) tenho|"
         r"qual (?:e )?o meu (?:processador|cpu)|"
@@ -35,11 +40,11 @@ class ToolRouter:
         re.IGNORECASE,
     )
     _TIME = re.compile(
-        r"^\s*(?:que horas são|que horas sao|que horas|diz-me a hora|diz me a hora|hora atual|hora)\s*\??$",
+        r"^\s*(?:que horas são|que horas sao|que horas|diz-me a hora|diz me a hora|hora atual|hora|what time is it|current time|time)\s*\??$",
         re.IGNORECASE,
     )
     _DATE = re.compile(
-        r"^\s*(?:que dia é hoje|que dia e hoje|qual é a data|qual e a data|data de hoje|data atual)\s*\??$",
+        r"^\s*(?:que dia é hoje|que dia e hoje|qual é a data|qual e a data|data de hoje|data atual|what is the date|what date is it|today'?s date|current date)\s*\??$",
         re.IGNORECASE,
     )
 
@@ -61,10 +66,14 @@ class ToolRouter:
 
         if normalized in {"que ficheiros tenho nesta pasta", "lista os ficheiros", "lista os ficheiros nesta pasta"}:
             return ToolCall("files", {"action": "list", "path": "."})
+        if normalized in {"what files are in this folder", "list files", "list the files", "list files in this folder"}:
+            return ToolCall("files", {"action": "list", "path": "."})
         # Match the original text so that paths retain accents and case.
         for pattern, action in (
             (r"lista (?:os )?ficheiros (?:da|na) pasta\s+(.+?)\??", "list"),
             (r"existe (?:um |o )?ficheiro (?:chamado )?(.+?)\??", "exists"),
+            (r"list (?:the )?files in (?:the )?folder\s+(.+?)\??", "list"),
+            (r"does (?:the )?file\s+(.+?)\s+exist\??", "exists"),
         ):
             match = re.fullmatch(pattern, text, re.IGNORECASE)
             if match:

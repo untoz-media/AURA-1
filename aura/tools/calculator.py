@@ -27,7 +27,7 @@ class CalculatorTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="calculator",
-            description="Calcula expressões aritméticas básicas de forma segura.",
+            description="Safely calculates basic arithmetic expressions.",
         )
 
     def run(self, expression: str, **kwargs: Any) -> int | float:
