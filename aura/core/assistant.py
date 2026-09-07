@@ -6,13 +6,15 @@ from aura.config import AuraConfig
 from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import PersistentMemory
 from aura.model.qwen import QwenRuntime
+from aura.settings import AuraSettings
 
 
 class AuraAssistant:
     """High-level AURA assistant interface."""
 
     def __init__(self, config: AuraConfig | None = None) -> None:
-        self.config = config or AuraConfig()
+        self.settings = AuraSettings()
+        self.config = config or self.settings.config()
         self.memory = ConversationMemory(max_messages=self.config.max_history_messages)
         self.persistent_memory = PersistentMemory()
         self.runtime = QwenRuntime(self.config)
