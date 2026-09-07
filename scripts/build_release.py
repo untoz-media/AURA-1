@@ -15,6 +15,7 @@ PACKAGE_ROOT = f"AURA-1-{__version__}"
 TOP_LEVEL = (
     "aura.py", "aura_web.py", "iniciar_aura_web.bat", "instalar_aura_windows.bat",
     "requirements-runtime.txt", "README.md", "MODEL_CARD.md", "LICENSE", "NOTICE",
+    "RELEASE_NOTES.md",
 )
 DIRECTORIES = ("aura", "docs")
 
