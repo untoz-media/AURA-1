@@ -7,14 +7,17 @@ def print_help() -> None:
     """Show the commands available in the AURA-1 CLI."""
     print(
         "\nComandos AURA-1:\n"
-        "  /help           — mostrar esta ajuda\n"
-        "  /clear          — limpar a memória da conversa atual\n"
-        "  /remember K V   — guardar uma memória persistente\n"
-        "  /memory         — mostrar as memórias persistentes\n"
-        "  /forget K       — apagar uma memória persistente\n"
-        "  /clear-memory   — apagar todas as memórias persistentes\n"
-        "  /info           — mostrar o estado atual do AURA-1\n"
-        "  /exit           — terminar o AURA-1\n"
+        "  /help                 — mostrar esta ajuda\n"
+        "  /clear                — limpar a memória da conversa atual\n"
+        "  /remember K V         — guardar uma memória persistente\n"
+        "  /memory               — mostrar as memórias persistentes\n"
+        "  /forget K             — apagar uma memória persistente\n"
+        "  /clear-memory         — apagar todas as memórias persistentes\n"
+        "  /settings             — mostrar as definições atuais\n"
+        "  /set K V              — alterar uma definição\n"
+        "  /reset-settings       — repor as definições de origem\n"
+        "  /info                 — mostrar o estado atual do AURA-1\n"
+        "  /exit                 — terminar o AURA-1\n"
     )
 
 
@@ -32,16 +35,37 @@ def print_info(assistant: AuraAssistant) -> None:
     )
 
 
-def print_persistent_memory(assistant: AuraAssistant) -> None:
-    """Show persistent memory entries."""
-    memories = assistant.persistent_memory.data
-    if not memories:
-        print("AURA: Não tenho memórias persistentes guardadas.")
-        return
+def print_settings(assistant: AuraAssistant) -> None:
+    """Show user-facing settings."""
+    print("\nAURA-1 — Definições")
+    for key, value in assistant.settings.data.items():
+        if key == "system_prompt":
+            print("  system_prompt = [interno]")
+        else:
+            print(f"  {key} = {value}")
+    print("\nNota: algumas definições só têm efeito ao reiniciar o AURA-1.")
 
-    print("\nAURA — Memória persistente")
-    for key, value in memories.items():
-        print(f"  {key} = {value}")
+
+def parse_setting_value(raw: str, current):
+    """Convert CLI text to the same type as the current setting."""
+    if isinstance(current, bool):
+        value = raw.lower()
+        if value in {"true", "on", "1", "sim", "yes"}:
+            return True
+        if value in {"false", "off", "0", "não", "nao", "no"}:
+            return False
+        return None
+    if isinstance(current, int) and not isinstance(current, bool):
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+    if isinstance(current, float):
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+    return raw
 
 
 def main() -> None:
@@ -91,6 +115,40 @@ def main() -> None:
             print("AURA: Todas as memórias persistentes foram apagadas.")
             continue
 
+        if command == "/settings":
+            print_settings(assistant)
+            continue
+
+        if command == "/reset-settings":
+            assistant.settings.reset()
+            print("AURA: Definições repostas. Reinicia o AURA-1 para aplicar todas as alterações.")
+            continue
+
+        if command.startswith("/set "):
+            payload = message[len("/set ") :].strip()
+            parts = payload.split(maxsplit=1)
+            if len(parts) != 2:
+                print("AURA: Usa /set CHAVE VALOR")
+                continue
+            key, raw_value = parts
+            current = assistant.settings.get(key)
+            if current is None:
+                print(f"AURA: Definição desconhecida: {key}")
+                continue
+            value = parse_setting_value(raw_value, current)
+            if value is None:
+                print(f"AURA: Valor inválido para {key}.")
+                continue
+            if key == "system_prompt":
+                print("AURA: O system_prompt é gerido internamente nesta fase.")
+                continue
+            if assistant.settings.set(key, value):
+                print(f"AURA: Definição alterada — {key} = {value}")
+                print("AURA: Reinicia o AURA-1 para aplicar a alteração.")
+            else:
+                print(f"AURA: Não foi possível alterar {key}.")
+            continue
+
         if command.startswith("/remember "):
             payload = message[len("/remember ") :].strip()
             parts = payload.split(maxsplit=1)
@@ -120,6 +178,18 @@ def main() -> None:
             continue
 
         print(f"AURA: {response}")
+
+
+def print_persistent_memory(assistant: AuraAssistant) -> None:
+    """Show persistent memory entries."""
+    memories = assistant.persistent_memory.data
+    if not memories:
+        print("AURA: Não tenho memórias persistentes guardadas.")
+        return
+
+    print("\nAURA — Memória persistente")
+    for key, value in memories.items():
+        print(f"  {key} = {value}")
 
 
 if __name__ == "__main__":
