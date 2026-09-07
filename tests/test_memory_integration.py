@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aura.core.assistant import AuraAssistant
 from aura.memory.persistent import PersistentMemory
+from aura.tools import ToolRouter
 
 
 class FakeRuntime:
@@ -24,6 +25,7 @@ def build_assistant(tmp_path) -> AuraAssistant:
     )
     assistant.persistent_memory = PersistentMemory(path=tmp_path / "memory.json")
     assistant.runtime = FakeRuntime()
+    assistant.tool_router = ToolRouter()
     return assistant
 
 
