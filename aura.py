@@ -1,7 +1,6 @@
 """Start the AURA-1 local assistant."""
 
 from aura.core.assistant import AuraAssistant
-from aura.profiles import PROFILE_LABELS, available_profiles
 
 
 def print_help() -> None:
@@ -18,7 +17,7 @@ def print_help() -> None:
         "  /set K V              — alterar uma definição\n"
         "  /reset-settings       — repor as definições de origem\n"
         "  /profiles             — mostrar os perfis disponíveis\n"
-        "  /profile NOME         — selecionar Fast, Balanced ou Deep\n"
+        "  /profile NOME         — selecionar um perfil\n"
         "  /info                 — mostrar o estado atual do AURA-1\n"
         "  /exit                 — terminar o AURA-1\n"
     )
@@ -27,11 +26,12 @@ def print_help() -> None:
 def print_info(assistant: AuraAssistant) -> None:
     """Show the current runtime configuration."""
     config = assistant.config
+    profile = assistant.settings.get("profile") or "balanced"
     print(
         "\nAURA-1 — Informação\n"
         f"Modelo: {config.model_name}\n"
         f"Idioma: {config.language}\n"
-        f"Perfil: {assistant.settings.active_profile}\n"
+        f"Perfil: {profile}\n"
         f"Memória de conversa: ativa ({len(assistant.memory.messages)} mensagens)\n"
         f"Memórias persistentes: {len(assistant.persistent_memory.data)}\n"
         f"Contexto máximo: {config.max_history_messages} mensagens\n"
@@ -39,24 +39,25 @@ def print_info(assistant: AuraAssistant) -> None:
     )
 
 
+def print_profiles(assistant: AuraAssistant) -> None:
+    """Show the available runtime profiles."""
+    current = assistant.settings.get("profile") or "balanced"
+    print("\nAURA-1 — Perfis")
+    print(f"  ⚡ Fast     — respostas mais rápidas{' ← atual' if current == 'fast' else ''}")
+    print(f"  ⚖️ Balanced — equilíbrio{' ← atual' if current == 'balanced' else ''}")
+    print(f"  🧠 Deep     — respostas mais elaboradas{' ← atual' if current == 'deep' else ''}")
+    print("\nUsa /profile fast, /profile balanced ou /profile deep.")
+
+
 def print_settings(assistant: AuraAssistant) -> None:
     """Show user-facing settings."""
     print("\nAURA-1 — Definições")
-    print(f"  perfil = {assistant.settings.active_profile}")
     for key, value in assistant.settings.data.items():
         if key == "system_prompt":
             print("  system_prompt = [interno]")
         else:
             print(f"  {key} = {value}")
     print("\nNota: algumas definições só têm efeito ao reiniciar o AURA-1.")
-
-
-def print_profiles(assistant: AuraAssistant) -> None:
-    """Show available runtime profiles."""
-    print("\nAURA-1 — Perfis")
-    for name in available_profiles():
-        marker = " ← atual" if name == assistant.settings.active_profile else ""
-        print(f"  {name}: {PROFILE_LABELS[name]}{marker}")
 
 
 def parse_setting_value(raw: str, current):
@@ -114,6 +115,29 @@ def main() -> None:
             print_help()
             continue
 
+        if command == "/info":
+            print_info(assistant)
+            continue
+
+        if command == "/profiles":
+            print_profiles(assistant)
+            continue
+
+        if command.startswith("/profile "):
+            profile = message[len("/profile ") :].strip().lower()
+            if profile not in {"fast", "balanced", "deep"}:
+                print("AURA: Perfil inválido. Usa fast, balanced ou deep.")
+                continue
+            if assistant.settings.set("profile", profile):
+                labels = {
+                    "fast": "⚡ Fast",
+                    "balanced": "⚖️ Balanced",
+                    "deep": "🧠 Deep",
+                }
+                print(f"AURA: Perfil alterado para {labels[profile]}.")
+                print("AURA: Reinicia o AURA-1 para aplicar o novo perfil.")
+            continue
+
         if command == "/clear":
             assistant.clear_memory()
             print("AURA: Memória da conversa atual limpa.")
@@ -137,19 +161,6 @@ def main() -> None:
             print("AURA: Definições repostas. Reinicia o AURA-1 para aplicar todas as alterações.")
             continue
 
-        if command == "/profiles":
-            print_profiles(assistant)
-            continue
-
-        if command.startswith("/profile "):
-            profile = message[len("/profile ") :].strip().lower()
-            if assistant.settings.set_profile(profile):
-                print(f"AURA: Perfil alterado para {PROFILE_LABELS[profile]}.")
-                print("AURA: Reinicia o AURA-1 para aplicar o novo perfil.")
-            else:
-                print("AURA: Perfil inválido. Usa /profiles para ver as opções.")
-            continue
-
         if command.startswith("/set "):
             payload = message[len("/set ") :].strip()
             parts = payload.split(maxsplit=1)
@@ -161,12 +172,12 @@ def main() -> None:
             if current is None:
                 print(f"AURA: Definição desconhecida: {key}")
                 continue
-            if key == "system_prompt":
-                print("AURA: O system_prompt é gerido internamente nesta fase.")
-                continue
             value = parse_setting_value(raw_value, current)
             if value is None:
                 print(f"AURA: Valor inválido para {key}.")
+                continue
+            if key == "system_prompt":
+                print("AURA: O system_prompt é gerido internamente nesta fase.")
                 continue
             if assistant.settings.set(key, value):
                 print(f"AURA: Definição alterada — {key} = {value}")
