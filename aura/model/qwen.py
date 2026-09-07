@@ -34,12 +34,43 @@ class QwenRuntime:
         )
         self.model.eval()
 
-    def generate(self, conversation: Sequence[dict[str, str]]) -> str:
-        """Generate a response from the current conversation."""
+    def _build_messages(
+        self, conversation: Sequence[dict[str, str]]
+    ) -> list[dict[str, str]]:
+        """Build a context window while preserving complete conversation turns."""
         messages = [
             {"role": "system", "content": self.config.system_prompt},
             *conversation,
         ]
+
+        budget = max(
+            512,
+            self.config.max_context_tokens - self.config.max_new_tokens,
+        )
+        while len(messages) > 2:
+            text = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=self.config.enable_thinking,
+            )
+            token_count = len(
+                self.tokenizer(text, add_special_tokens=False)["input_ids"]
+            )
+            if token_count <= budget:
+                return messages
+
+            # Keep the system prompt and remove the oldest user+assistant turn.
+            if len(messages) >= 3 and messages[1]["role"] == "user":
+                del messages[1:3]
+            else:
+                del messages[1]
+
+        return messages
+
+    def generate(self, conversation: Sequence[dict[str, str]]) -> str:
+        """Generate a response from the current conversation."""
+        messages = self._build_messages(conversation)
 
         text = self.tokenizer.apply_chat_template(
             messages,
