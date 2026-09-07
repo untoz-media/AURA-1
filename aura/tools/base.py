@@ -8,7 +8,25 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class Tool:
+class ToolResult:
+    """Normalized result returned by a tool execution."""
+
+    success: bool
+    tool_name: str
+    output: Any = None
+    error: str | None = None
+
+    @classmethod
+    def ok(cls, tool_name: str, output: Any = None) -> "ToolResult":
+        return cls(success=True, tool_name=tool_name, output=output)
+
+    @classmethod
+    def fail(cls, tool_name: str, error: str) -> "ToolResult":
+        return cls(success=False, tool_name=tool_name, error=error)
+
+
+@dataclass(frozen=True)
+class Tool(ABC):
     """A named action that AURA can invoke through the tool registry."""
 
     name: str
@@ -21,7 +39,7 @@ class Tool:
 
 
 class ToolRegistry:
-    """Register, discover and execute AURA tools by explicit name."""
+    """Register, discover and safely execute AURA tools by explicit name."""
 
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
@@ -44,8 +62,23 @@ class ToolRegistry:
         return tuple(self._tools[name] for name in sorted(self._tools))
 
     def run(self, name: str, **kwargs: Any) -> Any:
-        """Execute one explicitly selected tool."""
+        """Execute one explicitly selected tool, preserving the raw result API."""
         tool = self.get(name)
         if tool is None:
             raise KeyError(f"Tool desconhecida: {name}")
         return tool.run(**kwargs)
+
+    def execute(self, name: str, **kwargs: Any) -> ToolResult:
+        """Execute a tool and normalize expected and unexpected failures."""
+        tool = self.get(name)
+        if tool is None:
+            return ToolResult.fail(name.strip(), f"Tool desconhecida: {name}")
+
+        try:
+            output = tool.run(**kwargs)
+        except (TypeError, ValueError) as exc:
+            return ToolResult.fail(tool.name, str(exc))
+        except Exception:
+            return ToolResult.fail(tool.name, "Ocorreu um erro inesperado ao executar a tool.")
+
+        return ToolResult.ok(tool.name, output)
