@@ -76,5 +76,6 @@ dmypy.json
 .ipynb_checkpoints/
 
 # Local AURA-1 user data
-# Persistent memory is private/local and must not be committed.
+# Persistent memory and user settings are private/local and must not be committed.
 data/memory/aura_memory.json
+data/settings/aura_settings.json
