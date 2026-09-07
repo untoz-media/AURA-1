@@ -359,10 +359,6 @@ def main() -> None:
             continue
 
         try:
-            routed_result = assistant.execute_routed_tool(message)
-            if routed_result is not None:
-                print_tool_result(routed_result)
-                continue
             response = assistant.chat(message)
         except Exception as exc:
             print(f"AURA: Ocorreu um erro: {exc}")
