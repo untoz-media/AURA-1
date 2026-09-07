@@ -35,10 +35,7 @@ class AuraSettings:
     def save(self) -> None:
         """Persist the current settings locally."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(self.data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def reset(self) -> None:
         """Restore the default AURA-1 configuration."""
@@ -51,9 +48,7 @@ class AuraSettings:
 
     def set(self, key: str, value: Any) -> bool:
         """Set one known setting, returning whether the key exists."""
-        if key not in self.data:
-            return False
-        if type(value) is not type(self.data[key]):
+        if key not in self.data or type(value) is not type(self.data[key]):
             return False
         self.data[key] = value
         self.save()
