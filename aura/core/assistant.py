@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from aura.config import AuraConfig
 from aura.memory.conversation import ConversationMemory
@@ -19,7 +20,8 @@ class AuraAssistant:
         "a", "à", "as", "ao", "aos", "com", "como", "da", "das", "de", "do", "dos",
         "e", "é", "em", "eu", "me", "meu", "minha", "na", "nas", "no", "nos", "o",
         "os", "para", "por", "que", "qual", "se", "sou", "te", "um", "uma", "uns", "umas",
-        "tu", "é", "são", "sao", "hoje", "sobre", "isto", "isso", "esta", "este",
+        "tu", "são", "sao", "hoje", "sobre", "isto", "isso", "esta", "este", "estou",
+        "estás", "estas", "tenho", "tem", "tens", "podes", "pode", "diz", "dizer",
     }
 
     def __init__(self, config: AuraConfig | None = None) -> None:
@@ -82,22 +84,55 @@ class AuraAssistant:
         if not self.persistent_memory.data:
             return []
 
-        words = {
-            word for word in re.findall(r"[\wÀ-ÿ]+", message.lower())
-            if len(word) >= 3 and word not in self._MEMORY_STOPWORDS
-        }
-        if not words:
+        query_tokens = self._memory_tokens(message)
+        if not query_tokens:
             return []
 
-        scored: list[tuple[int, int, str, MemoryEntry]] = []
+        scored: list[tuple[float, int, str, MemoryEntry]] = []
+        normalized_query = self._normalize_text(message)
+
         for key, entry in self.persistent_memory.data.items():
-            searchable = f"{key} {entry.value} {entry.category}".lower()
-            score = sum(1 for word in words if word in searchable)
-            if score:
-                scored.append((score, entry.importance, key, entry))
+            key_tokens = self._memory_tokens(key, include_stopwords=True)
+            value_tokens = self._memory_tokens(entry.value, include_stopwords=True)
+            category_tokens = self._memory_tokens(entry.category, include_stopwords=True)
+            searchable_tokens = key_tokens | value_tokens | category_tokens
+
+            overlap = query_tokens & searchable_tokens
+            if not overlap:
+                continue
+
+            score = float(len(overlap))
+            if key_tokens and query_tokens.issubset(key_tokens):
+                score += 3.0
+            if key.lower().strip() in message.lower():
+                score += 4.0
+            if self._normalize_text(key) in normalized_query:
+                score += 2.0
+            if entry.category in query_tokens:
+                score += 0.5
+
+            scored.append((score, entry.importance, key, entry))
 
         scored.sort(key=lambda item: (-item[0], -item[1], item[2].lower()))
         return [(key, entry) for _, _, key, entry in scored[:limit]]
+
+    @classmethod
+    def _memory_tokens(cls, text: str, include_stopwords: bool = False) -> set[str]:
+        """Tokenize memory text consistently, ignoring punctuation and accents."""
+        tokens = set(re.findall(r"[a-z0-9]+", cls._normalize_text(text)))
+        if include_stopwords:
+            return tokens
+        return {
+            token
+            for token in tokens
+            if len(token) >= 3 and token not in cls._MEMORY_STOPWORDS
+        }
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        """Normalize accents and case for deterministic memory matching."""
+        normalized = unicodedata.normalize("NFKD", text.lower())
+        return "".join(char for char in normalized if not unicodedata.combining(char))
 
     def respond_to_tool_result(self, user_message: str, result: ToolResult) -> str:
         """Turn a successful routed tool result into a natural AURA response."""
@@ -151,7 +186,7 @@ class AuraAssistant:
         category: str = "general",
         importance: int = 3,
     ) -> None:
-        """Store a user-approved structured persistent memory."""
+        """Store one user-approved structured persistent memory."""
         self.persistent_memory.set(key, value, category, importance)
 
     def recall(self, key: str) -> str | None:
