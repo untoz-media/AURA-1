@@ -27,6 +27,7 @@ def print_help() -> None:
         "  /clear-memory                — apagar todas as memórias persistentes\n"
         "  /tools                       — mostrar as tools disponíveis\n"
         "  /tool calculator EXPRESSÃO   — executar a calculadora\n"
+        "  /tool datetime AÇÃO [FUSO]   — consultar data/hora\n"
         "  /settings                    — mostrar as definições atuais\n"
         "  /set K V                     — alterar uma definição\n"
         "  /reset-settings              — repor as definições de origem\n"
@@ -91,10 +92,13 @@ def print_tools(assistant: AuraAssistant) -> None:
 
 def parse_tool_command(payload: str):
     """Parse an explicit tool command."""
-    parts = payload.split(maxsplit=1)
-    if len(parts) != 2:
+    parts = payload.split(maxsplit=2)
+    if len(parts) < 2:
         return None
-    return parts[0], parts[1].strip()
+    tool_name = parts[0]
+    action = parts[1]
+    extra = parts[2].strip() if len(parts) == 3 else ""
+    return tool_name, action, extra
 
 
 def print_tool_result(result) -> None:
@@ -103,6 +107,19 @@ def print_tool_result(result) -> None:
         print(f"AURA: Resultado de {result.tool_name}: {result.output}")
     else:
         print(f"AURA: Erro na tool {result.tool_name}: {result.error}")
+
+
+def execute_cli_tool(assistant: AuraAssistant, tool_name: str, action: str, extra: str):
+    """Map CLI tool syntax to explicit tool arguments."""
+    if tool_name == "calculator":
+        expression = action if not extra else f"{action} {extra}"
+        return assistant.execute_tool(tool_name, expression=expression)
+
+    if tool_name == "datetime":
+        timezone = extra or "Europe/Lisbon"
+        return assistant.execute_tool(tool_name, action=action, timezone=timezone)
+
+    return assistant.execute_tool(tool_name, action=action)
 
 
 def parse_setting_value(raw: str, current):
@@ -235,10 +252,10 @@ def main() -> None:
         if command.startswith("/tool "):
             parsed = parse_tool_command(message[len("/tool ") :].strip())
             if parsed is None:
-                print("AURA: Usa /tool calculator EXPRESSÃO")
+                print("AURA: Usa /tool calculator EXPRESSÃO ou /tool datetime AÇÃO [FUSO]")
                 continue
-            tool_name, expression = parsed
-            result = assistant.execute_tool(tool_name, expression=expression)
+            tool_name, action, extra = parsed
+            result = execute_cli_tool(assistant, tool_name, action, extra)
             print_tool_result(result)
             continue
 
