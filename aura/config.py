@@ -15,6 +15,7 @@ class AuraConfig:
     repetition_penalty: float = 1.05
     enable_thinking: bool = False
     max_history_messages: int = 20
+    max_context_tokens: int = 3072
 
     # 4-bit loading keeps the local runtime practical on GPUs with limited VRAM.
     load_in_4bit: bool = True
