@@ -1,0 +1,51 @@
+"""Core abstractions for safe AURA-1 tools."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class Tool:
+    """A named action that AURA can invoke through the tool registry."""
+
+    name: str
+    description: str
+
+    @abstractmethod
+    def run(self, **kwargs: Any) -> Any:
+        """Execute the tool with validated keyword arguments."""
+        raise NotImplementedError
+
+
+class ToolRegistry:
+    """Register, discover and execute AURA tools by explicit name."""
+
+    def __init__(self) -> None:
+        self._tools: dict[str, Tool] = {}
+
+    def register(self, tool: Tool) -> None:
+        """Register a tool, rejecting empty or duplicate names."""
+        name = tool.name.strip()
+        if not name:
+            raise ValueError("O nome da tool não pode estar vazio.")
+        if name in self._tools:
+            raise ValueError(f"Tool já registada: {name}")
+        self._tools[name] = tool
+
+    def get(self, name: str) -> Tool | None:
+        """Return a registered tool by name."""
+        return self._tools.get(name.strip())
+
+    def list_tools(self) -> tuple[Tool, ...]:
+        """Return registered tools in stable name order."""
+        return tuple(self._tools[name] for name in sorted(self._tools))
+
+    def run(self, name: str, **kwargs: Any) -> Any:
+        """Execute one explicitly selected tool."""
+        tool = self.get(name)
+        if tool is None:
+            raise KeyError(f"Tool desconhecida: {name}")
+        return tool.run(**kwargs)
