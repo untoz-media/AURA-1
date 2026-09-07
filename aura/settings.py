@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from aura.config import AuraConfig
 
@@ -14,11 +15,11 @@ class AuraSettings:
 
     def __init__(self, path: str | Path = "data/settings/aura_settings.json") -> None:
         self.path = Path(path)
-        self.data = asdict(AuraConfig())
+        self.data: dict[str, Any] = asdict(AuraConfig())
         self.load()
 
     def load(self) -> None:
-        """Load valid user settings, keeping safe defaults for missing values."""
+        """Load user settings, keeping defaults for missing or invalid values."""
         if not self.path.exists():
             return
         try:
@@ -26,9 +27,10 @@ class AuraSettings:
         except (OSError, json.JSONDecodeError):
             return
         if isinstance(loaded, dict):
-            for key in self.data:
-                if key in loaded and isinstance(loaded[key], type(self.data[key])):
-                    self.data[key] = loaded[key]
+            for key, default in self.data.items():
+                value = loaded.get(key)
+                if type(value) is type(default):
+                    self.data[key] = value
 
     def save(self) -> None:
         """Persist the current settings locally."""
@@ -43,14 +45,20 @@ class AuraSettings:
         self.data = asdict(AuraConfig())
         self.save()
 
-    def get(self, key: str):
+    def get(self, key: str) -> Any:
         """Return one setting by name."""
         return self.data.get(key)
 
-    def set(self, key: str, value) -> bool:
+    def set(self, key: str, value: Any) -> bool:
         """Set one known setting, returning whether the key exists."""
         if key not in self.data:
+            return False
+        if type(value) is not type(self.data[key]):
             return False
         self.data[key] = value
         self.save()
         return True
+
+    def config(self) -> AuraConfig:
+        """Build an AuraConfig from the current settings."""
+        return AuraConfig(**self.data)
