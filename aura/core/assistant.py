@@ -7,7 +7,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
-from aura.tools import CalculatorTool, DateTimeTool, Tool, ToolRegistry, ToolResult
+from aura.tools import CalculatorTool, DateTimeTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
 
 
 class AuraAssistant:
@@ -20,6 +20,7 @@ class AuraAssistant:
         self.persistent_memory = PersistentMemory()
         self.runtime = QwenRuntime(self.config)
         self.tools = ToolRegistry()
+        self.tool_router = ToolRouter()
         self.register_tool(CalculatorTool())
         self.register_tool(DateTimeTool())
 
@@ -44,7 +45,7 @@ class AuraAssistant:
         self.tools.register(tool)
 
     def list_tools(self) -> tuple[Tool, ...]:
-        """Return all registered tools."""
+        """Return registered tools."""
         return self.tools.list_tools()
 
     def run_tool(self, name: str, **kwargs):
@@ -54,6 +55,17 @@ class AuraAssistant:
     def execute_tool(self, name: str, **kwargs) -> ToolResult:
         """Safely execute one tool and return a normalized result."""
         return self.tools.execute(name, **kwargs)
+
+    def route_tool(self, message: str) -> ToolCall | None:
+        """Detect a safe tool intent without executing it."""
+        return self.tool_router.route(message)
+
+    def execute_routed_tool(self, message: str) -> ToolResult | None:
+        """Route and execute a clearly recognized safe tool request."""
+        call = self.route_tool(message)
+        if call is None:
+            return None
+        return self.execute_tool(call.tool_name, **call.arguments)
 
     def remember(
         self,
