@@ -1,0 +1,8 @@
+# Runtime used by the local terminal and browser applications.
+# Install a PyTorch build suitable for your CPU/GPU before this file when needed:
+# https://pytorch.org/get-started/locally/
+torch>=2.7
+transformers>=5.0
+accelerate>=1.0
+bitsandbytes>=0.45
+tzdata>=2025.1

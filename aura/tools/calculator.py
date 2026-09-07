@@ -32,6 +32,8 @@ class CalculatorTool(Tool):
 
     def run(self, expression: str, **kwargs: Any) -> int | float:
         """Evaluate a safe arithmetic expression."""
+        if kwargs or not isinstance(expression, str):
+            raise ValueError("Indica apenas uma expressão matemática em texto.")
         expression = expression.strip()
         if not expression:
             raise ValueError("A expressão não pode estar vazia.")

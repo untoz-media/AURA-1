@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AURA-1 · Untoz</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="aurora aurora-one"></div><div class="aurora aurora-two"></div>
+  <main class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="mark">A</span><div><strong>AURA-1</strong><small>by Untoz</small></div></div>
+      <button id="newChat" class="new-chat"><span>＋</span> Nova conversa</button>
+      <div class="info-card">
+        <div class="status-line"><span id="statusDot" class="dot loading"></span><span id="statusText">A iniciar modelo…</span></div>
+        <dl><div><dt>Modelo</dt><dd id="modelName">A carregar</dd></div><div><dt>Perfil</dt><dd id="profileName">—</dd></div></dl>
+      </div>
+      <div class="capabilities"><p>Capacidades locais</p><div id="toolList" class="chips"><span>Memória</span></div></div>
+      <p class="privacy">Alpha 0.1 · Tudo corre neste computador.<br>As conversas não saem do dispositivo.</p>
+    </aside>
+    <section class="workspace">
+      <header><button id="menuButton" aria-label="Abrir menu">☰</button><div><span>AURA-1</span><small>Assistente local</small></div></header>
+      <div id="conversation" class="conversation" aria-live="polite">
+        <div class="welcome">
+          <div class="orb"><div></div></div>
+          <p class="eyebrow">OLÁ, SOU A AURA</p>
+          <h1>Como posso ajudar?</h1>
+          <p>A tua assistente pessoal, privada e sempre disponível neste computador.</p>
+          <div class="suggestions">
+            <button data-prompt="Quanta RAM tenho?"><b>Estado do computador</b><span>Ver memória e sistema</span></button>
+            <button data-prompt="Que ficheiros tenho nesta pasta?"><b>Explorar o projeto</b><span>Listar ficheiros locais</span></button>
+            <button data-prompt="Explica-me inteligência artificial de forma simples."><b>Aprender algo</b><span>Fazer uma pergunta</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="composer-wrap">
+        <form id="composer"><textarea id="message" rows="1" maxlength="4096" placeholder="Escreve uma mensagem…" disabled></textarea><button id="send" type="submit" aria-label="Enviar" disabled>↑</button></form>
+        <p>A AURA pode cometer erros. Confirma informação importante.</p>
+      </div>
+    </section>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

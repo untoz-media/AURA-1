@@ -5,6 +5,7 @@ from aura.tools.calculator import CalculatorTool
 from aura.tools.datetime_tool import DateTimeTool
 from aura.tools.router import ToolCall, ToolRouter
 from aura.tools.system_info import SystemInfoTool
+from aura.tools.files import FileTool
 
 __all__ = [
     "Tool",
@@ -15,4 +16,5 @@ __all__ = [
     "CalculatorTool",
     "DateTimeTool",
     "SystemInfoTool",
+    "FileTool",
 ]
