@@ -66,7 +66,7 @@ def _handler(app: AuraWebApp):
             self.send_header("Cache-Control", "no-store")
             self.send_header(
                 "Content-Security-Policy",
-                "default-src 'self'; script-src 'self'; style-src 'self'; "
+                "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; "
                 "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'",
             )
 
@@ -114,11 +114,11 @@ def _handler(app: AuraWebApp):
             if path == "/api/status":
                 self._json(HTTPStatus.OK, app.public_state())
                 return
-            static = {"/": "index.html", "/app.css": "app.css", "/app.js": "app.js"}.get(path)
+            static = {"/": "index.html", "/app.css": "app.css", "/app.js": "app.js", "/favicon.svg": "favicon.svg", "/fonts/Sora-Variable.ttf": "fonts/Sora-Variable.ttf"}.get(path)
             if static is None:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
                 return
-            types = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
+            types = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".ttf": "font/ttf"}
             self._send(HTTPStatus.OK, (STATIC_ROOT / static).read_bytes(), types[Path(static).suffix])
 
         def do_POST(self) -> None:

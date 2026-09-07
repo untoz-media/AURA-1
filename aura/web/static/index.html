@@ -4,30 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#05070A">
   <title>AURA-1 · Untoz</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <div class="aurora aurora-one"></div><div class="aurora aurora-two"></div>
   <main class="shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="mark">A</span><div><strong>AURA-1</strong><small>by Untoz</small></div></div>
+    <aside id="sidebar" class="sidebar">
+      <div class="brand">
+        <div class="aura-core aura-core--small" data-aura-state="idle" aria-hidden="true"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
+        <div><strong>AURA-1</strong><small>by Untoz</small></div>
+      </div>
       <button id="newChat" class="new-chat"><span>＋</span> New conversation</button>
       <div class="info-card">
         <div class="status-line"><span id="statusDot" class="dot loading"></span><span id="statusText">Starting model…</span></div>
         <dl><div><dt>Model</dt><dd id="modelName">Loading</dd></div><div><dt>Profile</dt><dd id="profileName">—</dd></div></dl>
       </div>
       <div class="capabilities"><p>Local capabilities</p><div id="toolList" class="chips"><span>Memory</span></div></div>
-      <p class="privacy">Alpha 0.1 · Everything runs locally.<br>Your conversations stay on this device.</p>
+      <p class="privacy"><b>AI that lives on your computer.</b><br>Local processing. Private conversations.</p>
     </aside>
     <section class="workspace">
-      <header><button id="menuButton" aria-label="Open menu">☰</button><div><span>AURA-1</span><small>Local AI assistant</small></div></header>
+      <header><button id="menuButton" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">☰</button><div><span>AURA-1</span><small>Local AI assistant</small></div></header>
       <div id="conversation" class="conversation" aria-live="polite">
         <div class="welcome">
-          <div class="orb"><div></div></div>
-          <p class="eyebrow">HELLO, I'M AURA</p>
+          <div id="mainCore" class="aura-core aura-core--hero" data-aura-state="idle" role="img" aria-label="AURA Core, idle"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
+          <p class="eyebrow">AURA-1 BY UNTOZ</p>
           <h1>How can I help?</h1>
-          <p>Your private personal assistant, always available on this computer.</p>
+          <p>AI that lives on your computer.</p>
           <div class="suggestions">
             <button data-prompt="How much RAM do I have?"><b>Computer status</b><span>View memory and system</span></button>
             <button data-prompt="What files are in this folder?"><b>Explore the project</b><span>List local files</span></button>
@@ -37,7 +41,7 @@
       </div>
       <div class="composer-wrap">
         <form id="composer"><textarea id="message" rows="1" maxlength="4096" placeholder="Message AURA…" disabled></textarea><button id="send" type="submit" aria-label="Send" disabled>↑</button></form>
-        <p>AURA can make mistakes. Check important information.</p>
+        <p><span class="local-indicator"></span>Local AI · Private by design · AURA-1 Alpha</p>
       </div>
     </section>
   </main>

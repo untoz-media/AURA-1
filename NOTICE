@@ -9,3 +9,6 @@ https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
 
 The AURA-1 Alpha package does not include the upstream model weights. They are
 downloaded separately by the Transformers library on first use.
+
+The interface bundles the Sora typeface from the Google Fonts project under
+the SIL Open Font License 1.1. Its license is included with the font files.

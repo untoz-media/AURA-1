@@ -5,7 +5,7 @@ from scripts.build_release import included_files
 
 
 def test_alpha_version():
-    assert __version__ == "0.1.0-alpha.1"
+    assert __version__ == "0.1.0-alpha.2"
 
 
 def test_release_allowlist_excludes_private_and_development_data():

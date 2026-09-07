@@ -29,6 +29,6 @@ jobs:
         run: >-
           gh release create "$GITHUB_REF_NAME"
           dist/*.zip dist/*.sha256
-          --title "AURA-1 Alpha 0.1"
+          --title "AURA-1 $GITHUB_REF_NAME"
           --notes-file RELEASE_NOTES.md
           --prerelease

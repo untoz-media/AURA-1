@@ -66,6 +66,21 @@ def test_status_and_static_interface(web_server):
     status, _, body = request(server, "GET", "/")
     assert status == 200
     assert b"AURA-1" in body
+    assert b"AI that lives on your computer." in body
+    status, _, body = request(server, "GET", "/favicon.svg")
+    assert status == 200 and b"#00A3FF" in body
+    status, _, body = request(server, "GET", "/fonts/Sora-Variable.ttf")
+    assert status == 200 and len(body) > 1000
+
+
+def test_brand_tokens_and_core_states(web_server):
+    _, server = web_server
+    _, _, css = request(server, "GET", "/app.css")
+    for token in (b"#05070a", b"#1a1e26", b"#f4f7ff", b"#00a3ff", b"#7b61ff"):
+        assert token in css.lower()
+    _, _, js = request(server, "GET", "/app.js")
+    assert b"setCoreState('generating')" in js
+    assert b"setCoreState('idle')" in js
 
 
 def test_chat_and_clear(web_server):

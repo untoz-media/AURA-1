@@ -54,4 +54,4 @@ model card, evaluation results and version, separate from this application Alpha
 
 ## Version
 
-Application release: `0.1.0-alpha.1`.
+Application release: `0.1.0-alpha.2`.
