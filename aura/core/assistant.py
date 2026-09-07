@@ -7,7 +7,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
-from aura.tools import Tool, ToolRegistry
+from aura.tools import CalculatorTool, Tool, ToolRegistry
 
 
 class AuraAssistant:
@@ -20,6 +20,7 @@ class AuraAssistant:
         self.persistent_memory = PersistentMemory()
         self.runtime = QwenRuntime(self.config)
         self.tools = ToolRegistry()
+        self.register_tool(CalculatorTool())
 
     def chat(self, message: str) -> str:
         """Send one user message to AURA and return its response."""
@@ -76,7 +77,7 @@ class AuraAssistant:
         return self.persistent_memory.delete(key)
 
     def clear_persistent_memory(self) -> None:
-        """Clear all persistent memory."""
+        """Clear all persistent memory entries."""
         self.persistent_memory.clear()
 
     def clear_memory(self) -> None:
