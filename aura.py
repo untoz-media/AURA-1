@@ -22,18 +22,18 @@ def print_help() -> None:
         "  /remember K V                 — guardar uma memória persistente\n"
         "  /remember K V | CATEGORIA | N — guardar memória com categoria e importância\n"
         "  /memory                       — mostrar as memórias persistentes\n"
-        "  /memory-search TEXTO          — pesquisar nas memórias persistentes\n"
-        "  /forget K                     — apagar uma memória persistente\n"
-        "  /clear-memory                 — apagar todas as memórias persistentes\n"
-        "  /tools                        — mostrar as tools disponíveis\n"
-        "  /tool calculator EXPRESSÃO    — executar a calculadora\n"
-        "  /settings                     — mostrar as definições atuais\n"
-        "  /set K V                      — alterar uma definição\n"
-        "  /reset-settings               — repor as definições de origem\n"
-        "  /profiles                     — mostrar os perfis disponíveis\n"
-        "  /profile NOME                 — selecionar um perfil\n"
-        "  /info                         — mostrar o estado atual do AURA-1\n"
-        "  /exit                         — terminar o AURA-1\n"
+        "  /memory-search TEXTO         — pesquisar nas memórias persistentes\n"
+        "  /forget K                    — apagar uma memória persistente\n"
+        "  /clear-memory                — apagar todas as memórias persistentes\n"
+        "  /tools                       — mostrar as tools disponíveis\n"
+        "  /tool calculator EXPRESSÃO   — executar a calculadora\n"
+        "  /settings                    — mostrar as definições atuais\n"
+        "  /set K V                     — alterar uma definição\n"
+        "  /reset-settings              — repor as definições de origem\n"
+        "  /profiles                    — mostrar os perfis disponíveis\n"
+        "  /profile NOME                — selecionar um perfil\n"
+        "  /info                        — mostrar o estado atual do AURA-1\n"
+        "  /exit                        — terminar o AURA-1\n"
     )
 
 
@@ -90,16 +90,19 @@ def print_tools(assistant: AuraAssistant) -> None:
 
 
 def parse_tool_command(payload: str):
-    """Parse an explicit calculator tool command."""
+    """Parse an explicit tool command."""
     parts = payload.split(maxsplit=1)
     if len(parts) != 2:
         return None
     return parts[0], parts[1].strip()
 
 
-def print_tool_result(tool_name: str, result) -> None:
-    """Print one tool result."""
-    print(f"AURA: Resultado de {tool_name}: {result}")
+def print_tool_result(result) -> None:
+    """Print one normalized tool result."""
+    if result.success:
+        print(f"AURA: Resultado de {result.tool_name}: {result.output}")
+    else:
+        print(f"AURA: Erro na tool {result.tool_name}: {result.error}")
 
 
 def parse_setting_value(raw: str, current):
@@ -235,12 +238,8 @@ def main() -> None:
                 print("AURA: Usa /tool calculator EXPRESSÃO")
                 continue
             tool_name, expression = parsed
-            try:
-                result = assistant.run_tool(tool_name, expression=expression)
-            except (KeyError, ValueError) as exc:
-                print(f"AURA: {exc}")
-                continue
-            print_tool_result(tool_name, result)
+            result = assistant.execute_tool(tool_name, expression=expression)
+            print_tool_result(result)
             continue
 
         if command == "/profiles":
