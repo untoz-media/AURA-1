@@ -47,6 +47,8 @@ class CalculatorTool(Tool):
 
     def _evaluate(self, node: ast.AST) -> int | float:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+            if abs(node.value) > 10**12:
+                raise ValueError("Os números são demasiado grandes.")
             return node.value
 
         if isinstance(node, ast.UnaryOp) and type(node.op) in self._OPERATORS:
@@ -56,12 +58,14 @@ class CalculatorTool(Tool):
         if isinstance(node, ast.BinOp) and type(node.op) in self._OPERATORS:
             left = self._evaluate(node.left)
             right = self._evaluate(node.right)
+            if isinstance(node.op, ast.Pow) and abs(right) > 100:
+                raise ValueError("O expoente é demasiado grande.")
             try:
                 result = self._OPERATORS[type(node.op)](left, right)
             except (ZeroDivisionError, OverflowError) as exc:
                 raise ValueError("Não foi possível calcular a expressão.") from exc
-            if isinstance(result, complex):
-                raise ValueError("Números complexos não são suportados.")
+            if isinstance(result, complex) or abs(result) > 10**12:
+                raise ValueError("O resultado é demasiado grande.")
             return result
 
         raise ValueError("Só são permitidas operações aritméticas básicas.")
