@@ -35,6 +35,22 @@ class ToolRouter:
         r"system_info)"
     )
 
+    _STORAGE = re.compile(
+        r"(?:o que (?:esta|está) a ocupar mais espaco no meu (?:pc|computador|disco)|"
+        r"o que ocupa mais espaco no meu (?:pc|computador|disco)|"
+        r"quais (?:sao|são) as maiores pastas(?: no meu computador)?|"
+        r"analisa (?:o )?(?:meu )?(?:armazenamento|disco)|"
+        r"quanto espaco tenho livre|"
+        r"quanto espaco livre tenho|"
+        r"what is using the most space on my computer|"
+        r"what is taking up the most space on my computer|"
+        r"what are my largest folders|"
+        r"analyze my storage|"
+        r"analyse my storage|"
+        r"how much disk space do i have free|"
+        r"storage_analyzer)"
+    )
+
     _CALCULATOR = re.compile(
         r"^\s*(?:quanto é|quanto e|quanto dá|quanto da|calcula|calcular|faz|fazer|calculate)\s+(.+?)\s*\??$",
         re.IGNORECASE,
@@ -63,6 +79,8 @@ class ToolRouter:
         normalized = " ".join(normalized.rstrip("?!.").split())
         if self._SYSTEM_INFO.fullmatch(normalized):
             return ToolCall("system_info", {})
+        if self._STORAGE.fullmatch(normalized):
+            return ToolCall("storage_analyzer", {})
 
         if normalized in {"que ficheiros tenho nesta pasta", "lista os ficheiros", "lista os ficheiros nesta pasta"}:
             return ToolCall("files", {"action": "list", "path": "."})
