@@ -15,19 +15,21 @@ class DateTimeTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="datetime",
-            description="Consulta a data e hora atuais, incluindo fusos horários.",
+            description="Returns the current date and time, including time zones.",
         )
 
     def run(self, action: str = "now", timezone: str = "Europe/Lisbon", **kwargs: Any) -> str:
         """Return the requested date/time information."""
+        if kwargs or not isinstance(action, str) or not isinstance(timezone, str):
+            raise ValueError("Indica apenas a ação e o fuso horário em texto.")
         action = action.strip().lower()
         if action not in {"now", "date", "time", "weekday", "timestamp"}:
             raise ValueError("Ação inválida. Usa now, date, time, weekday ou timestamp.")
 
         try:
             zone = ZoneInfo(timezone.strip())
-        except ZoneInfoNotFoundError as exc:
-            raise ValueError(f"Fuso horário inválido: {timezone}") from exc
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("Fuso horário inválido.") from exc
 
         current = datetime.now(zone)
 

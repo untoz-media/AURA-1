@@ -2,6 +2,7 @@
 
 from aura.core.assistant import AuraAssistant
 from aura.profiles import PROFILE_LABELS
+import sys
 
 
 CATEGORY_LABELS = {
@@ -28,6 +29,9 @@ def print_help() -> None:
         "  /tools                       — mostrar as tools disponíveis\n"
         "  /tool calculator EXPRESSÃO   — executar a calculadora\n"
         "  /tool datetime AÇÃO [FUSO]   — consultar data/hora\n"
+        "  /tool system_info            — consultar o sistema\n"
+        "  /tool files list [PASTA]     — listar ficheiros do projeto\n"
+        "  /tool files exists CAMINHO   — verificar existência\n"
         "  /settings                    — mostrar as definições atuais\n"
         "  /set K V                     — alterar uma definição\n"
         "  /reset-settings              — repor as definições de origem\n"
@@ -93,6 +97,8 @@ def print_tools(assistant: AuraAssistant) -> None:
 def parse_tool_command(payload: str):
     """Parse an explicit tool command."""
     parts = payload.split(maxsplit=2)
+    if parts == ["system_info"]:
+        return "system_info", "", ""
     if len(parts) < 2:
         return None
     tool_name = parts[0]
@@ -111,6 +117,13 @@ def print_tool_result(result) -> None:
 
 def execute_cli_tool(assistant: AuraAssistant, tool_name: str, action: str, extra: str):
     """Map CLI tool syntax to explicit tool arguments."""
+    if tool_name == "system_info" and not action and not extra:
+        return assistant.execute_tool(tool_name)
+    if tool_name == "files":
+        path = extra or "."
+        if len(path) >= 2 and path[0] == path[-1] and path[0] in "\"'":
+            path = path[1:-1]
+        return assistant.execute_tool(tool_name, action=action, path=path)
     if tool_name == "calculator":
         expression = action if not extra else f"{action} {extra}"
         return assistant.execute_tool(tool_name, expression=expression)
@@ -368,4 +381,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Preserve model output, including emojis, when Windows redirects stdout.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     main()

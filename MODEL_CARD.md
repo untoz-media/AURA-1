@@ -1,45 +1,57 @@
-# AURA-1 Model Card
+# AURA-1 Alpha 0.1 — Application Card
 
 ## Overview
 
-AURA-1 is a planned ~4B-parameter language model developed by Untoz for the AURA personal AI assistant.
+AURA-1 Alpha 0.1 is an experimental local personal-assistant application
+developed by Untoz. This release is an orchestration and interface layer around
+the unmodified `Qwen/Qwen3-4B-Instruct-2507` model. It is not yet a separately
+trained AURA-1 language model.
 
-## Base model
+## Model and attribution
 
-AURA-1 is planned to be fine-tuned from **Qwen3-4B-Base**.
+- Runtime model: Qwen3-4B-Instruct-2507
+- Developer: Qwen team, Alibaba Cloud
+- Source: https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
+- Upstream license: Apache License 2.0
+- Default runtime: Transformers with optional 4-bit quantization
 
-The base model's license, attribution requirements and other terms must be preserved and documented in the final release.
+The release archive does not redistribute model weights. Transformers downloads
+them from the upstream repository on first use. See `NOTICE` and `LICENSE`.
+
+## AURA application layer
+
+Untoz provides the system prompt, local browser and terminal interfaces,
+conversation and structured persistent memory, tool routing, tool validation,
+and the read-only local tools included in this repository.
 
 ## Intended use
 
-- Personal AI assistance
-- Local inference
-- Portuguese and English interaction
-- Coding assistance
-- Writing and rewriting
-- General instruction following
-- Future AURA tool-use workflows
-
-## Out of scope
-
-AURA-1 should not be represented as a frontier model or as a replacement for professional advice in high-stakes domains.
-
-## Training
-
-Training details will be added after the first reproducible training run. No final training dataset or benchmark results are claimed at this stage.
-
-## Data
-
-The project intends to use a curated dataset containing legally usable data, with provenance and licensing tracked for each source.
+- Local personal assistance
+- English-first conversation with Portuguese support
+- Writing, explanations and general instruction following
+- Safe arithmetic, date/time and system information
+- Controlled file-name discovery inside the project
 
 ## Evaluation
 
-A reproducible evaluation suite will be added before the first model release. Results will be published with the corresponding model version.
+The application has automated tests covering memory, tools, security boundaries
+and the local web API. A local smoke test confirmed end-to-end generation through
+the browser server. This is not a comprehensive evaluation of factuality,
+bias, instruction following or safety.
 
 ## Limitations
 
-As an early-stage model, AURA-1 may produce incorrect, incomplete, outdated or biased outputs. Local deployment does not guarantee factual accuracy or safety.
+Model output may be incorrect, incomplete, outdated or biased. The Alpha is
+single-user and localhost-only. It has no public-server authentication,
+multi-user isolation or streaming output. It should not be presented as a
+replacement for professional advice in high-stakes domains.
 
-## Versioning
+## Future model work
 
-The first planned release is **AURA-1-v0.1**. This document will be updated as the model progresses.
+The longer-term AURA-1 model project plans a reproducible fine-tune with a
+licensed and documented dataset. That future artifact will receive its own
+model card, evaluation results and version, separate from this application Alpha.
+
+## Version
+
+Application release: `0.1.0-alpha.1`.

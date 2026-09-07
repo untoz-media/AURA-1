@@ -10,7 +10,7 @@ from aura.memory.conversation import ConversationMemory
 from aura.memory.persistent import MemoryEntry, PersistentMemory
 from aura.model.qwen import QwenRuntime
 from aura.settings import AuraSettings
-from aura.tools import CalculatorTool, DateTimeTool, SystemInfoTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
+from aura.tools import CalculatorTool, DateTimeTool, FileTool, SystemInfoTool, Tool, ToolCall, ToolRegistry, ToolResult, ToolRouter
 
 
 class AuraAssistant:
@@ -35,6 +35,7 @@ class AuraAssistant:
         self.register_tool(CalculatorTool())
         self.register_tool(DateTimeTool())
         self.register_tool(SystemInfoTool())
+        self.register_tool(FileTool())
 
     def chat(self, message: str) -> str:
         """Send one user message to AURA and return its response."""
@@ -141,7 +142,18 @@ class AuraAssistant:
     def respond_to_tool_result(self, user_message: str, result: ToolResult) -> str:
         """Turn a successful routed tool result into a natural AURA response."""
         if not result.success:
-            return f"Não consegui obter o resultado: {result.error}"
+            return f"I couldn't complete that request: {result.error}"
+
+        if result.tool_name == "system_info" and any(
+            word in self._normalize_text(user_message) for word in ("ram", "memoria")
+        ):
+            def memory_label(value):
+                return f"{value} GB" if isinstance(value, (int, float)) else "desconhecida"
+            total = memory_label(result.output.get('ram_total_gb'))
+            available = memory_label(result.output.get('ram_disponivel_gb'))
+            if any(word in self._normalize_text(user_message) for word in ("quanta", "tenho", "memoria", "disponivel")):
+                return f"RAM total: {total}. RAM disponível neste momento: {available}."
+            return f"Total RAM: {total}. RAM currently available: {available}."
 
         tool_data = (
             "DADOS AUTORITATIVOS DE UMA TOOL REGISTADA. "

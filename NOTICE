@@ -1,0 +1,11 @@
+AURA-1 Alpha 0.1
+Copyright 2026 Untoz
+
+This application uses Qwen3-4B-Instruct-2507, developed by the Qwen team at
+Alibaba Cloud and distributed under the Apache License 2.0.
+
+Upstream model:
+https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
+
+The AURA-1 Alpha package does not include the upstream model weights. They are
+downloaded separately by the Transformers library on first use.

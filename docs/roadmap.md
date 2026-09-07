@@ -51,9 +51,14 @@
 
 ## M007 — AURA Integration
 
-- [ ] Connect AURA-1 to the AURA application
-- [ ] Test conversational behavior
+- [x] Connect AURA-1 to the AURA application
+- [x] Add conversation and persistent memory
+- [x] Add safe tool system (calculator, date/time, system info and files)
+- [x] Add localhost browser prototype
+- [x] Add automated integration and web API tests
+- [ ] Complete conversational quality benchmark
 - [ ] Test latency and resource use
+- [ ] Add streamed responses and restored visual history
 
 ## M008 — Hugging Face
 

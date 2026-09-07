@@ -9,39 +9,44 @@ import platform
 from aura.tools.base import Tool
 
 
-class _MemoryStatusEx(ctypes.Structure):
+class _MemoryStatus(ctypes.Structure):
     _fields_ = [
-        ("dwLength", ctypes.c_ulong),
-        ("dwMemoryLoad", ctypes.c_ulong),
-        ("ullTotalPhys", ctypes.c_ulonglong),
-        ("ullAvailPhys", ctypes.c_ulonglong),
-        ("ullTotalPageFile", ctypes.c_ulonglong),
-        ("ullAvailPageFile", ctypes.c_ulonglong),
-        ("ullTotalVirtual", ctypes.c_ulonglong),
-        ("ullAvailVirtual", ctypes.c_ulonglong),
-        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ("length", ctypes.c_uint32),
+        ("load", ctypes.c_uint32),
+        ("total_phys", ctypes.c_uint64),
+        ("avail_phys", ctypes.c_uint64),
+        ("total_page", ctypes.c_uint64),
+        ("avail_page", ctypes.c_uint64),
+        ("total_virtual", ctypes.c_uint64),
+        ("avail_virtual", ctypes.c_uint64),
+        ("avail_extended", ctypes.c_uint64),
     ]
 
 
-def _ram_gb() -> tuple[float | None, float | None]:
-    """Return total and available physical RAM in GiB without shell calls."""
-    if os.name == "nt":
-        status = _MemoryStatusEx()
-        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
-        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
-            return round(status.ullTotalPhys / (1024**3), 2), round(status.ullAvailPhys / (1024**3), 2)
-        return None, None
-
-    if hasattr(os, "sysconf"):
-        try:
-            page_size = os.sysconf("SC_PAGE_SIZE")
-            total = page_size * os.sysconf("SC_PHYS_PAGES") / (1024**3)
-            available = page_size * os.sysconf("SC_AVPHYS_PAGES") / (1024**3)
-            return round(total, 2), round(available, 2)
-        except (OSError, ValueError):
-            pass
-
-    return None, None
+def _memory_gb() -> tuple[float | str, float | str]:
+    """Read physical RAM; unavailable platform counters remain unknown."""
+    total = available = "desconhecida"
+    try:
+        if platform.system() == "Windows":
+            status = _MemoryStatus()
+            status.length = ctypes.sizeof(status)
+            query = ctypes.WinDLL("kernel32", use_last_error=True).GlobalMemoryStatusEx
+            query.argtypes = [ctypes.POINTER(_MemoryStatus)]
+            query.restype = ctypes.c_int
+            if not query(ctypes.byref(status)):
+                return total, available
+            return round(status.total_phys / 1024**3, 2), round(status.avail_phys / 1024**3, 2)
+        if hasattr(os, "sysconf"):
+            page = os.sysconf("SC_PAGE_SIZE")
+            pages = os.sysconf("SC_PHYS_PAGES")
+            if page > 0 and pages > 0:
+                total = round(page * pages / 1024**3, 2)
+            free_pages = os.sysconf("SC_AVPHYS_PAGES")
+            if page > 0 and free_pages >= 0:
+                available = round(page * free_pages / 1024**3, 2)
+    except (AttributeError, OSError, ValueError):
+        pass
+    return total, available
 
 
 class SystemInfoTool(Tool):
@@ -50,15 +55,15 @@ class SystemInfoTool(Tool):
     def __init__(self) -> None:
         super().__init__(
             name="system_info",
-            description="Obtém informação básica e segura sobre o sistema local.",
+            description="Returns basic, read-only information about the local system.",
         )
 
-    def run(self, **kwargs) -> dict[str, str | int | float | None]:
+    def run(self, **kwargs) -> dict[str, str | int | float]:
         """Return read-only system facts without executing shell commands."""
         if kwargs:
             raise ValueError("A tool system_info não aceita argumentos.")
 
-        total_ram, available_ram = _ram_gb()
+        memory_gb, available_gb = _memory_gb()
         return {
             "sistema_operativo": platform.system() or "desconhecido",
             "versao_sistema": platform.release() or "desconhecida",
@@ -66,6 +71,7 @@ class SystemInfoTool(Tool):
             "processador": platform.processor() or platform.machine() or "desconhecido",
             "python": platform.python_version(),
             "cpu_logical": os.cpu_count() or 0,
-            "ram_total_gb": total_ram,
-            "ram_disponivel_gb": available_ram,
+            "ram_gb": memory_gb,
+            "ram_total_gb": memory_gb,
+            "ram_disponivel_gb": available_gb,
         }
