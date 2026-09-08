@@ -1,8 +1,13 @@
 """Start the AURA-1 local assistant."""
 
+import sys
+
+from aura.agent.plan_executor import PlanExecutor
+from aura.agent.planner import Planner
+from aura.agent.tool_router import ToolRouter
 from aura.core.assistant import AuraAssistant
 from aura.profiles import PROFILE_LABELS
-import sys
+from aura.ui.console import AuraConsole
 
 
 CATEGORY_LABELS = {
@@ -14,375 +19,968 @@ CATEGORY_LABELS = {
 }
 
 
-def print_help() -> None:
-    """Show the commands available in the AURA-1 CLI."""
-    print(
-        "\nComandos AURA-1:\n"
-        "  /help                         — mostrar esta ajuda\n"
-        "  /clear                        — limpar a memória da conversa atual\n"
-        "  /remember K V                 — guardar uma memória persistente\n"
-        "  /remember K V | CATEGORIA | N — guardar memória com categoria e importância\n"
-        "  /memory                       — mostrar as memórias persistentes\n"
-        "  /memory-search TEXTO         — pesquisar nas memórias persistentes\n"
-        "  /forget K                    — apagar uma memória persistente\n"
-        "  /clear-memory                — apagar todas as memórias persistentes\n"
-        "  /tools                       — mostrar as tools disponíveis\n"
-        "  /tool calculator EXPRESSÃO   — executar a calculadora\n"
-        "  /tool datetime AÇÃO [FUSO]   — consultar data/hora\n"
-        "  /tool system_info            — consultar o sistema\n"
-        "  /tool files list [PASTA]     — listar ficheiros do projeto\n"
-        "  /tool files exists CAMINHO   — verificar existência\n"
-        "  /settings                    — mostrar as definições atuais\n"
-        "  /set K V                     — alterar uma definição\n"
-        "  /reset-settings              — repor as definições de origem\n"
-        "  /profiles                    — mostrar os perfis disponíveis\n"
-        "  /profile NOME                — selecionar um perfil\n"
-        "  /info                        — mostrar o estado atual do AURA-1\n"
-        "  /exit                        — terminar o AURA-1\n"
-    )
-
-
-def print_info(assistant: AuraAssistant) -> None:
-    """Show the current runtime configuration."""
-    config = assistant.config
-    profile = assistant.settings.active_profile
-    print(
-        "\nAURA-1 — Informação\n"
-        f"Modelo: {config.model_name}\n"
-        f"Idioma: {config.language}\n"
-        f"Perfil: {profile}\n"
-        f"Memória de conversa: ativa ({len(assistant.memory.messages)} mensagens)\n"
-        f"Memórias persistentes: {len(assistant.persistent_memory.data)}\n"
-        f"Tools disponíveis: {len(assistant.list_tools())}\n"
-        f"Contexto máximo: {config.max_history_messages} mensagens\n"
-        f"Pensamento: {'ativo' if config.enable_thinking else 'desativado'}\n"
-        f"Máximo de tokens: {config.max_new_tokens}\n"
-        f"Temperatura: {config.temperature}\n"
-    )
-
-
-def print_profiles(assistant: AuraAssistant) -> None:
-    """Show the available runtime profiles."""
-    current = assistant.settings.active_profile
-    print("\nAURA-1 — Perfis")
-    print(f"  {PROFILE_LABELS['fast']}     — respostas mais rápidas{' ← atual' if current == 'fast' else ''}")
-    print(f"  {PROFILE_LABELS['balanced']} — equilíbrio{' ← atual' if current == 'balanced' else ''}")
-    print(f"  {PROFILE_LABELS['deep']}     — respostas mais elaboradas{' ← atual' if current == 'deep' else ''}")
-    print("\nUsa /profile fast, /profile balanced ou /profile deep.")
-
-
-def print_settings(assistant: AuraAssistant) -> None:
-    """Show user-facing settings."""
-    print("\nAURA-1 — Definições")
-    for key, value in assistant.settings.data.items():
-        if key == "system_prompt":
-            print("  system_prompt = [interno]")
-        else:
-            print(f"  {key} = {value}")
-    print(f"  active_profile = {assistant.settings.active_profile}")
-    print("\nNota: algumas definições só têm efeito ao reiniciar o AURA-1.")
-
-
-def print_tools(assistant: AuraAssistant) -> None:
-    """Show registered tools."""
-    tools = assistant.list_tools()
-    print("\nAURA-1 — Tools disponíveis")
-    if not tools:
-        print("  Nenhuma tool registada.")
-        return
-    for tool in tools:
-        print(f"  {tool.name} — {tool.description}")
-
-
-def parse_tool_command(payload: str):
-    """Parse an explicit tool command."""
-    parts = payload.split(maxsplit=2)
-    if parts == ["system_info"]:
-        return "system_info", "", ""
-    if len(parts) < 2:
-        return None
-    tool_name = parts[0]
-    action = parts[1]
-    extra = parts[2].strip() if len(parts) == 3 else ""
-    return tool_name, action, extra
-
-
-def print_tool_result(result) -> None:
-    """Print one normalized tool result."""
-    if result.success:
-        print(f"AURA: Resultado de {result.tool_name}: {result.output}")
-    else:
-        print(f"AURA: Erro na tool {result.tool_name}: {result.error}")
-
-
-def execute_cli_tool(assistant: AuraAssistant, tool_name: str, action: str, extra: str):
-    """Map CLI tool syntax to explicit tool arguments."""
-    if tool_name == "system_info" and not action and not extra:
-        return assistant.execute_tool(tool_name)
-    if tool_name == "files":
-        path = extra or "."
-        if len(path) >= 2 and path[0] == path[-1] and path[0] in "\"'":
-            path = path[1:-1]
-        return assistant.execute_tool(tool_name, action=action, path=path)
-    if tool_name == "calculator":
-        expression = action if not extra else f"{action} {extra}"
-        return assistant.execute_tool(tool_name, expression=expression)
-
-    if tool_name == "datetime":
-        timezone = extra or "Europe/Lisbon"
-        return assistant.execute_tool(tool_name, action=action, timezone=timezone)
-
-    return assistant.execute_tool(tool_name, action=action)
-
-
-def parse_setting_value(raw: str, current):
-    """Convert CLI text to the same type as the current setting."""
-    if isinstance(current, bool):
-        value = raw.lower()
-        if value in {"true", "on", "1", "sim", "yes"}:
-            return True
-        if value in {"false", "off", "0", "não", "nao", "no"}:
-            return False
-        return None
-    if isinstance(current, int) and not isinstance(current, bool):
-        try:
-            return int(raw)
-        except ValueError:
-            return None
-    if isinstance(current, float):
-        try:
-            return float(raw)
-        except ValueError:
-            return None
-    return raw
-
-
 def parse_remember_payload(payload: str):
-    """Parse simple or extended /remember syntax."""
-    parts = [part.strip() for part in payload.split("|")]
+    parts = [
+        part.strip()
+        for part in payload.split("|")
+    ]
+
     if not parts or not parts[0]:
         return None
 
     first = parts[0].split(maxsplit=1)
+
     if len(first) != 2:
         return None
 
     key, value = first
+
     category = "general"
     importance = 3
 
     if len(parts) >= 2 and parts[1]:
         category = parts[1].lower()
+
     if len(parts) >= 3 and parts[2]:
         try:
             importance = int(parts[2])
         except ValueError:
             return None
+
     if len(parts) > 3:
         return None
 
     return key, value, category, importance
 
 
-def print_memory_entry(key: str, entry) -> None:
-    """Print one structured memory entry."""
-    category = CATEGORY_LABELS.get(entry.category, entry.category)
-    stars = "★" * entry.importance + "☆" * (5 - entry.importance)
-    print(f"  {key} = {entry.value}")
-    print(f"    Categoria: {category} | Importância: {stars}")
+def parse_setting_value(raw: str, current):
+    if isinstance(current, bool):
+        value = raw.lower()
+
+        if value in {
+            "true",
+            "on",
+            "1",
+            "sim",
+            "yes",
+        }:
+            return True
+
+        if value in {
+            "false",
+            "off",
+            "0",
+            "não",
+            "nao",
+            "no",
+        }:
+            return False
+
+        return None
+
+    if (
+        isinstance(current, int)
+        and not isinstance(current, bool)
+    ):
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+
+    if isinstance(current, float):
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    return raw
 
 
-def print_persistent_memory(assistant: AuraAssistant) -> None:
-    """Show persistent memory entries grouped by category."""
+def format_tool_response(
+    tool_name: str,
+    result: dict,
+) -> str:
+    if not result.get("sucesso", True):
+        return (
+            "Não consegui executar essa ação: "
+            + result.get(
+                "erro",
+                "erro desconhecido",
+            )
+        )
+
+    if tool_name == "disk_info":
+        return (
+            f"Tens {result.get('livre_gb', '?')} GB livres "
+            f"de {result.get('total_gb', '?')} GB. "
+            f"O disco está "
+            f"{result.get('percentagem_usada', '?')}% ocupado."
+        )
+
+    if tool_name == "system_info":
+        return (
+            f"Estás a usar "
+            f"{result.get('sistema_operativo', 'desconhecido')} "
+            f"{result.get('versao_sistema', '')}, "
+            f"com {result.get('cpu_logical', '?')} "
+            "processadores lógicos."
+        )
+
+    if tool_name == "app_launcher":
+        action = result.get("acao")
+
+        if action == "abrir_pasta":
+            return (
+                f"Abri a pasta "
+                f"{result.get('target', '')}."
+            )
+
+        if action in {
+            "abrir_app",
+            "abrir_app_descoberta",
+        }:
+            name = (
+                result.get("nome")
+                or result.get("target")
+                or "a aplicação"
+            )
+
+            return f"Abri {name}."
+
+    if tool_name == "file_manager":
+        if result.get("acao") == "criar_pasta":
+            return (
+                "Criei a pasta em "
+                f"{result.get('path')}."
+            )
+
+    if tool_name == "process_manager":
+        if (
+            result.get("acao")
+            == "fechar_processo"
+        ):
+            processes = result.get(
+                "processos",
+                [],
+            )
+
+            names = sorted(
+                {
+                    process.get(
+                        "nome",
+                        "processo",
+                    )
+                    for process in processes
+                }
+            )
+
+            return (
+                "Fechei: "
+                + ", ".join(names)
+                + "."
+            )
+
+        if "em_execucao" in result:
+            if result.get("em_execucao"):
+                processes = result.get(
+                    "processos",
+                    [],
+                )
+
+                if processes:
+                    return (
+                        f"Sim. "
+                        f"{processes[0].get('nome')} "
+                        "está em execução."
+                    )
+
+                return (
+                    "Sim, está em execução."
+                )
+
+            return (
+                "Não, não está em execução."
+            )
+
+        if "processos" in result:
+            processes = result.get(
+                "processos",
+                [],
+            )
+
+            if not processes:
+                return (
+                    "Não encontrei processos "
+                    "em execução."
+                )
+
+            lines = []
+
+            for process in processes[:10]:
+                lines.append(
+                    f"{process.get('nome', 'Desconhecido')} — "
+                    f"{process.get('memoria_mb', '?')} MB"
+                )
+
+            return (
+                "Processos com maior "
+                "utilização de memória:\n\n"
+                + "\n".join(
+                    f"• {line}"
+                    for line in lines
+                )
+            )
+
+    return str(result)
+
+
+def print_memory(
+    assistant: AuraAssistant,
+    ui: AuraConsole,
+) -> None:
     memories = assistant.persistent_memory.data
+
     if not memories:
-        print("AURA: Não tenho memórias persistentes guardadas.")
+        ui.info(
+            "Não existem memórias persistentes."
+        )
         return
 
-    print("\nAURA — Memória persistente")
-    for category in CATEGORY_LABELS:
-        entries = [(key, entry) for key, entry in memories.items() if entry.category == category]
-        if not entries:
-            continue
-        print(f"\n[{CATEGORY_LABELS[category]}]")
-        for key, entry in sorted(entries, key=lambda item: (-item[1].importance, item[0])):
-            print_memory_entry(key, entry)
+    for key, entry in memories.items():
+        ui.info(
+            f"{key} = {entry.value} "
+            f"[{entry.category}, "
+            f"{entry.importance}/5]"
+        )
 
 
-def print_memory_search(assistant: AuraAssistant, query: str) -> None:
-    """Show matching persistent memories."""
-    matches = assistant.search_memory(query)
-    if not matches:
-        print(f"AURA: Não encontrei memórias para '{query}'.")
+def show_help(
+    ui: AuraConsole,
+) -> None:
+    ui.aura(
+        "Comandos disponíveis:\n\n"
+        "/help\n"
+        "/info\n"
+        "/clear\n"
+        "/memory\n"
+        "/memory-search TEXTO\n"
+        "/remember CHAVE VALOR\n"
+        "/forget CHAVE\n"
+        "/clear-memory\n"
+        "/profiles\n"
+        "/profile fast|balanced|deep\n"
+        "/settings\n"
+        "/set CHAVE VALOR\n"
+        "/reset-settings\n"
+        "/tools\n"
+        "/exit\n\n"
+        "Também podes falar comigo normalmente "
+        "e pedir ações no Windows."
+    )
+
+
+def execute_agent_plan(
+    plan,
+    plan_executor: PlanExecutor,
+    ui: AuraConsole,
+) -> None:
+    valid, reason = Planner().validate(
+        plan
+    )
+
+    if not valid:
+        ui.error(
+            f"Plano inválido: {reason}"
+        )
         return
 
-    print(f"\nAURA — Resultados para '{query}'")
-    for key, entry in sorted(matches.items(), key=lambda item: (-item[1].importance, item[0])):
-        print_memory_entry(key, entry)
+    ui.plan(
+        plan.description,
+        plan.actions,
+    )
+
+    result = plan_executor.execute(
+        plan.actions
+    )
+
+    # ----------------------------------------------
+    # PLAN COMPLETED
+    # ----------------------------------------------
+
+    if result.status == "completed":
+        for action_result in result.results:
+            if action_result.result:
+                message = format_tool_response(
+                    action_result.tool,
+                    action_result.result,
+                )
+
+                ui.success(
+                    message
+                )
+
+        ui.plan_complete(
+            result.completed,
+            result.total,
+        )
+
+        return
+
+    # ----------------------------------------------
+    # CONFIRMATION REQUIRED
+    # ----------------------------------------------
+
+    if (
+        result.status
+        == "confirmation_required"
+        and result.pending_action
+        is not None
+        and result.pending_index
+        is not None
+    ):
+        action = result.pending_action
+
+        description = (
+            action.description
+            or (
+                f"{action.tool}."
+                f"{action.action}"
+            )
+        )
+
+        confirmed = ui.confirm(
+            "AURA precisa de autorização "
+            "para continuar o plano:\n\n"
+            f"{description}"
+        )
+
+        if not confirmed:
+            ui.warning(
+                "Plano cancelado."
+            )
+            return
+
+        resumed = (
+            plan_executor.execute_confirmed(
+                plan.actions,
+                result.pending_index,
+            )
+        )
+
+        if resumed.status == "completed":
+            for action_result in resumed.results:
+                if action_result.result:
+                    message = (
+                        format_tool_response(
+                            action_result.tool,
+                            action_result.result,
+                        )
+                    )
+
+                    ui.success(
+                        message
+                    )
+
+            ui.plan_complete(
+                resumed.completed,
+                resumed.total,
+            )
+
+            return
+
+        if (
+            resumed.status
+            == "confirmation_required"
+        ):
+            ui.warning(
+                "O plano encontrou outra ação "
+                "que necessita de confirmação."
+            )
+            return
+
+        ui.error(
+            f"O plano parou com estado: "
+            f"{resumed.status}"
+        )
+
+        return
+
+    # ----------------------------------------------
+    # BLOCKED
+    # ----------------------------------------------
+
+    if result.status == "blocked":
+        ui.blocked(
+            "Uma ação do plano foi bloqueada "
+            "pelo sistema de permissões."
+        )
+        return
+
+    # ----------------------------------------------
+    # OTHER FAILURE
+    # ----------------------------------------------
+
+    ui.error(
+        f"O plano terminou com estado: "
+        f"{result.status}"
+    )
 
 
 def main() -> None:
-    print("=" * 60)
-    print("AURA-1")
-    print("Untoz AI Assistant")
-    print("Escreve /help para ver os comandos.")
-    print("=" * 60)
+    ui = AuraConsole()
+
+    ui.header()
+
+    ui.info(
+        "A iniciar o Agent Runtime..."
+    )
+
+    # ----------------------------------------------
+    # AGENT COMPONENTS
+    # ----------------------------------------------
+
+    tool_router = ToolRouter()
+    planner = Planner()
+    plan_executor = PlanExecutor()
+
+    # ----------------------------------------------
+    # MODEL
+    # ----------------------------------------------
 
     try:
-        assistant = AuraAssistant()
+        with ui.loading(
+            "A carregar inteligência local..."
+        ):
+            assistant = AuraAssistant()
+
     except Exception as exc:
-        print(f"\nAURA-1: Não foi possível iniciar o modelo.\nErro: {exc}")
+        ui.error(
+            "Não foi possível iniciar "
+            f"o modelo: {exc}"
+        )
         return
+
+    ui.success(
+        "AURA-1 está operacional."
+    )
+
+    ui.info(
+        "Alpha 2 Development • "
+        "Agent Runtime Online"
+    )
+
+    # ==================================================
+    # MAIN LOOP
+    # ==================================================
 
     while True:
         try:
-            message = input("\nTu: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nAURA: Até já!")
+            message = ui.ask()
+
+        except (
+            EOFError,
+            KeyboardInterrupt,
+        ):
+            ui.aura(
+                "Até já!"
+            )
             break
 
         if not message:
             continue
 
-        command = message.lower()
+        command = message.lower().strip()
 
-        if command in {"/exit", "/quit", "sair", "exit", "quit"}:
-            print("AURA: Até já!")
+        # ----------------------------------------------
+        # EXIT
+        # ----------------------------------------------
+
+        if command in {
+            "/exit",
+            "/quit",
+            "exit",
+            "quit",
+            "sair",
+        }:
+            ui.aura(
+                "Até já!"
+            )
             break
 
+        # ----------------------------------------------
+        # HELP
+        # ----------------------------------------------
+
         if command == "/help":
-            print_help()
+            show_help(ui)
             continue
+
+        # ----------------------------------------------
+        # INFO
+        # ----------------------------------------------
 
         if command == "/info":
-            print_info(assistant)
+            ui.aura(
+                "AURA-1 Alpha 2\n\n"
+                f"Modelo: "
+                f"{assistant.config.model_name}\n"
+                f"Perfil: "
+                f"{assistant.settings.active_profile}\n"
+                f"Memória da conversa: "
+                f"{len(assistant.memory.messages)} mensagens\n"
+                f"Memórias persistentes: "
+                f"{len(assistant.persistent_memory.data)}\n"
+                "Agent Runtime: online\n"
+                "Tool Router v2: online\n"
+                "Planner: online\n"
+                "Permission Manager: online"
+            )
             continue
 
-        if command == "/tools":
-            print_tools(assistant)
-            continue
-
-        if command.startswith("/tool "):
-            parsed = parse_tool_command(message[len("/tool ") :].strip())
-            if parsed is None:
-                print("AURA: Usa /tool calculator EXPRESSÃO ou /tool datetime AÇÃO [FUSO]")
-                continue
-            tool_name, action, extra = parsed
-            result = execute_cli_tool(assistant, tool_name, action, extra)
-            print_tool_result(result)
-            continue
-
-        if command == "/profiles":
-            print_profiles(assistant)
-            continue
-
-        if command.startswith("/profile "):
-            profile = message[len("/profile ") :].strip().lower()
-            if profile not in PROFILE_LABELS:
-                print("AURA: Perfil inválido. Usa fast, balanced ou deep.")
-                continue
-            if assistant.settings.set_profile(profile):
-                print(f"AURA: Perfil alterado para {PROFILE_LABELS[profile]}.")
-                print("AURA: Reinicia o AURA-1 para aplicar o novo perfil.")
-            else:
-                print("AURA: Não foi possível alterar o perfil.")
-            continue
+        # ----------------------------------------------
+        # CLEAR
+        # ----------------------------------------------
 
         if command == "/clear":
             assistant.clear_memory()
-            print("AURA: Memória da conversa atual limpa.")
+
+            ui.success(
+                "Memória da conversa limpa."
+            )
             continue
+
+        # ----------------------------------------------
+        # MEMORY
+        # ----------------------------------------------
 
         if command == "/memory":
-            print_persistent_memory(assistant)
+            print_memory(
+                assistant,
+                ui,
+            )
             continue
 
-        if command.startswith("/memory-search "):
-            query = message[len("/memory-search ") :].strip()
-            if not query:
-                print("AURA: Usa /memory-search TEXTO")
+        if command.startswith(
+            "/memory-search "
+        ):
+            query = message[
+                len("/memory-search ") :
+            ].strip()
+
+            matches = (
+                assistant.search_memory(
+                    query
+                )
+            )
+
+            if not matches:
+                ui.info(
+                    "Não encontrei memórias "
+                    f"para '{query}'."
+                )
+            else:
+                for key, entry in matches.items():
+                    ui.info(
+                        f"{key} = {entry.value}"
+                    )
+
+            continue
+
+        if command.startswith(
+            "/remember "
+        ):
+            payload = message[
+                len("/remember ") :
+            ].strip()
+
+            parsed = (
+                parse_remember_payload(
+                    payload
+                )
+            )
+
+            if parsed is None:
+                ui.error(
+                    "Formato inválido para "
+                    "/remember."
+                )
                 continue
-            print_memory_search(assistant, query)
+
+            (
+                key,
+                value,
+                category,
+                importance,
+            ) = parsed
+
+            try:
+                assistant.remember(
+                    key,
+                    value,
+                    category,
+                    importance,
+                )
+
+                ui.success(
+                    f"Memória guardada: "
+                    f"{key} = {value}"
+                )
+
+            except ValueError as exc:
+                ui.error(
+                    str(exc)
+                )
+
+            continue
+
+        if command.startswith(
+            "/forget "
+        ):
+            key = message[
+                len("/forget ") :
+            ].strip()
+
+            if assistant.forget(key):
+                ui.success(
+                    f"Memória '{key}' apagada."
+                )
+            else:
+                ui.warning(
+                    f"Não encontrei '{key}'."
+                )
+
             continue
 
         if command == "/clear-memory":
             assistant.clear_persistent_memory()
-            print("AURA: Todas as memórias persistentes foram apagadas.")
+
+            ui.success(
+                "Todas as memórias "
+                "persistentes foram apagadas."
+            )
             continue
 
+        # ----------------------------------------------
+        # PROFILES
+        # ----------------------------------------------
+
+        if command == "/profiles":
+            current = (
+                assistant.settings
+                .active_profile
+            )
+
+            ui.aura(
+                "Perfis disponíveis:\n\n"
+                f"fast"
+                f"{' ← atual' if current == 'fast' else ''}\n"
+                f"balanced"
+                f"{' ← atual' if current == 'balanced' else ''}\n"
+                f"deep"
+                f"{' ← atual' if current == 'deep' else ''}"
+            )
+
+            continue
+
+        if command.startswith(
+            "/profile "
+        ):
+            profile = message[
+                len("/profile ") :
+            ].strip().lower()
+
+            if profile not in PROFILE_LABELS:
+                ui.error(
+                    "Perfil inválido."
+                )
+                continue
+
+            if assistant.settings.set_profile(
+                profile
+            ):
+                ui.success(
+                    f"Perfil alterado para "
+                    f"{profile}."
+                )
+
+                ui.info(
+                    "Reinicia o AURA para "
+                    "aplicar totalmente."
+                )
+
+            continue
+
+        # ----------------------------------------------
+        # SETTINGS
+        # ----------------------------------------------
+
         if command == "/settings":
-            print_settings(assistant)
+            for key, value in (
+                assistant.settings
+                .data.items()
+            ):
+                if key != "system_prompt":
+                    ui.info(
+                        f"{key} = {value}"
+                    )
+
+            continue
+
+        if command.startswith(
+            "/set "
+        ):
+            payload = message[
+                len("/set ") :
+            ].strip()
+
+            parts = payload.split(
+                maxsplit=1
+            )
+
+            if len(parts) != 2:
+                ui.error(
+                    "Usa /set CHAVE VALOR"
+                )
+                continue
+
+            key, raw_value = parts
+
+            current = (
+                assistant.settings.get(
+                    key
+                )
+            )
+
+            if current is None:
+                ui.error(
+                    "Definição desconhecida."
+                )
+                continue
+
+            value = parse_setting_value(
+                raw_value,
+                current,
+            )
+
+            if value is None:
+                ui.error(
+                    "Valor inválido."
+                )
+                continue
+
+            if key == "system_prompt":
+                ui.blocked(
+                    "system_prompt é gerido "
+                    "internamente."
+                )
+                continue
+
+            if assistant.settings.set(
+                key,
+                value,
+            ):
+                ui.success(
+                    f"{key} = {value}"
+                )
+
             continue
 
         if command == "/reset-settings":
             assistant.settings.reset()
-            print("AURA: Definições repostas. Reinicia o AURA-1 para aplicar todas as alterações.")
+
+            ui.success(
+                "Definições repostas."
+            )
             continue
 
-        if command.startswith("/set "):
-            payload = message[len("/set ") :].strip()
-            parts = payload.split(maxsplit=1)
-            if len(parts) != 2:
-                print("AURA: Usa /set CHAVE VALOR")
-                continue
-            key, raw_value = parts
-            current = assistant.settings.get(key)
-            if current is None:
-                print(f"AURA: Definição desconhecida: {key}")
-                continue
-            value = parse_setting_value(raw_value, current)
-            if value is None:
-                print(f"AURA: Valor inválido para {key}.")
-                continue
-            if key == "system_prompt":
-                print("AURA: O system_prompt é gerido internamente nesta fase.")
-                continue
-            if assistant.settings.set(key, value):
-                print(f"AURA: Definição alterada — {key} = {value}")
-                print("AURA: Reinicia o AURA-1 para aplicar a alteração.")
-            else:
-                print(f"AURA: Não foi possível alterar {key}.")
+        # ----------------------------------------------
+        # TOOLS
+        # ----------------------------------------------
+
+        if command == "/tools":
+            ui.aura(
+                "AURA Tools\n\n"
+                "• System Info\n"
+                "• Disk Info\n"
+                "• App Launcher\n"
+                "• App Discovery\n"
+                "• File Manager\n"
+                "• Process Manager\n"
+                "• Tool Router v2\n"
+                "• Planner\n"
+                "• Plan Executor\n"
+                "• Action Executor\n"
+                "• Permission Manager"
+            )
             continue
 
-        if command.startswith("/remember "):
-            payload = message[len("/remember ") :].strip()
-            parsed = parse_remember_payload(payload)
-            if parsed is None:
-                print("AURA: Usa /remember CHAVE VALOR ou /remember CHAVE VALOR | CATEGORIA | IMPORTÂNCIA")
-                continue
-            key, value, category, importance = parsed
-            try:
-                assistant.remember(key, value, category, importance)
-            except ValueError as exc:
-                print(f"AURA: {exc}")
-                continue
-            print(f"AURA: Memória guardada — {key} = {value}")
-            print(f"AURA: Categoria: {category} | Importância: {importance}/5")
-            continue
-
-        if command.startswith("/forget "):
-            key = message[len("/forget ") :].strip()
-            if not key:
-                print("AURA: Usa /forget CHAVE")
-                continue
-            if assistant.forget(key):
-                print(f"AURA: Memória '{key}' apagada.")
-            else:
-                print(f"AURA: Não encontrei a memória '{key}'.")
-            continue
+        # ==================================================
+        # 1. PLANNER
+        # ==================================================
 
         try:
-            response = assistant.chat(message)
+            plan = planner.create_plan(
+                message
+            )
+
         except Exception as exc:
-            print(f"AURA: Ocorreu um erro: {exc}")
+            ui.error(
+                "Erro no Planner: "
+                f"{exc}"
+            )
             continue
 
-        print(f"AURA: {response}")
+        if plan is not None:
+            execute_agent_plan(
+                plan,
+                plan_executor,
+                ui,
+            )
+
+            continue
+
+        # ==================================================
+        # 2. TOOL ROUTER
+        # ==================================================
+
+        try:
+            routed = tool_router.route(
+                message
+            )
+
+        except Exception as exc:
+            ui.error(
+                "Erro no Tool Router: "
+                f"{exc}"
+            )
+            continue
+
+        if routed is not None:
+
+            # ------------------------------------------
+            # CONFIRMATION
+            # ------------------------------------------
+
+            if routed.get(
+                "requires_confirmation"
+            ):
+                target = routed.get(
+                    "target",
+                    "",
+                )
+
+                confirmed = ui.confirm(
+                    "AURA pretende executar "
+                    "uma ação protegida:\n\n"
+                    f"Fechar '{target}'"
+                )
+
+                if not confirmed:
+                    ui.warning(
+                        "Ação cancelada."
+                    )
+                    continue
+
+                result = (
+                    tool_router
+                    .execute_confirmed_action(
+                        "process_manager",
+                        "close",
+                        target,
+                    )
+                )
+
+                message_out = (
+                    format_tool_response(
+                        "process_manager",
+                        result,
+                    )
+                )
+
+                ui.aura(
+                    message_out
+                )
+
+                continue
+
+            # ------------------------------------------
+            # NORMAL TOOL
+            # ------------------------------------------
+
+            result = routed.get(
+                "result"
+            )
+
+            if result is None:
+                ui.error(
+                    "A ferramenta não devolveu "
+                    "resultado."
+                )
+                continue
+
+            # Process list gets a nice table.
+            if (
+                routed["tool"]
+                == "process_manager"
+                and "processos" in result
+                and "em_execucao" not in result
+            ):
+                ui.processes(
+                    result.get(
+                        "processos",
+                        [],
+                    )
+                )
+                continue
+
+            message_out = (
+                format_tool_response(
+                    routed["tool"],
+                    result,
+                )
+            )
+
+            ui.aura(
+                message_out
+            )
+
+            continue
+
+        # ==================================================
+        # 3. NORMAL LOCAL AI
+        # ==================================================
+
+        try:
+            with ui.loading(
+                "AURA está a pensar..."
+            ):
+                response = assistant.chat(
+                    message
+                )
+
+        except Exception as exc:
+            ui.error(
+                f"Erro do modelo: {exc}"
+            )
+            continue
+
+        ui.aura(
+            response
+        )
 
 
 if __name__ == "__main__":
-    # Preserve model output, including emojis, when Windows redirects stdout.
-    for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    for stream in (
+        sys.stdout,
+        sys.stderr,
+    ):
+        if hasattr(
+            stream,
+            "reconfigure",
+        ):
+            stream.reconfigure(
+                encoding="utf-8",
+                errors="backslashreplace",
+            )
+
     main()

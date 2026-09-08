@@ -1,0 +1,390 @@
+from __future__ import annotations
+
+import re
+import unicodedata
+from pathlib import Path
+
+from aura.tools.app_launcher import AppLauncherTool
+from aura.tools.disk_info import DiskInfoTool
+from aura.tools.file_manager import FileManagerTool
+from aura.tools.process_manager import ProcessManagerTool
+from aura.tools.system_info import SystemInfoTool
+
+
+class ToolRouter:
+    def __init__(self):
+        self.app_launcher = AppLauncherTool()
+        self.disk_info = DiskInfoTool()
+        self.file_manager = FileManagerTool()
+        self.process_manager = ProcessManagerTool()
+        self.system_info = SystemInfoTool()
+
+    # --------------------------------------------------
+    # NORMALIZATION
+    # --------------------------------------------------
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        text = text.strip().lower()
+
+        text = "".join(
+            char
+            for char in unicodedata.normalize("NFD", text)
+            if unicodedata.category(char) != "Mn"
+        )
+
+        text = re.sub(r"[!?.,;:]+", " ", text)
+        text = re.sub(r"\s+", " ", text)
+
+        return text.strip()
+
+    @staticmethod
+    def _normalize_process_name(name: str) -> str:
+        aliases = {
+            "bloco de notas": "notepad",
+            "notepad": "notepad",
+            "spotify": "spotify",
+            "brave": "brave",
+            "chrome": "chrome",
+            "google chrome": "chrome",
+            "discord": "discord",
+            "paint": "mspaint",
+            "explorador": "explorer",
+            "explorador de ficheiros": "explorer",
+            "explorer": "explorer",
+            "powershell": "powershell",
+            "command prompt": "cmd",
+            "cmd": "cmd",
+            "obs": "obs64",
+            "obs studio": "obs64",
+        }
+
+        cleaned = ToolRouter._normalize_text(name)
+
+        return aliases.get(cleaned, cleaned)
+
+    @staticmethod
+    def _strip_polite_prefix(text: str) -> str:
+        prefixes = [
+            "aura ",
+            "aura podes ",
+            "aura pode ",
+            "podes ",
+            "pode ",
+            "consegues ",
+            "consegue ",
+            "por favor ",
+            "faz favor ",
+            "quero que ",
+            "preciso que ",
+            "gostava que ",
+        ]
+
+        changed = True
+
+        while changed:
+            changed = False
+
+            for prefix in prefixes:
+                if text.startswith(prefix):
+                    text = text[len(prefix):].strip()
+                    changed = True
+
+        return text
+
+    # --------------------------------------------------
+    # MAIN ROUTER
+    # --------------------------------------------------
+
+    def route(self, message: str) -> dict | None:
+        raw_text = message.strip()
+
+        normalized = self._normalize_text(raw_text)
+        normalized = self._strip_polite_prefix(normalized)
+
+        if not normalized:
+            return None
+
+        # --------------------------------------------------
+        # PROCESS LIST / RAM
+        # --------------------------------------------------
+
+        process_list_keywords = [
+            "programas abertos",
+            "aplicacoes abertas",
+            "processos abertos",
+            "processos a correr",
+            "processos em execucao",
+            "o que esta aberto",
+            "o que tenho aberto",
+            "que programas estao abertos",
+            "que aplicacoes estao abertas",
+            "lista os processos",
+            "mostra os processos",
+        ]
+
+        ram_keywords = [
+            "mais memoria",
+            "mais ram",
+            "gastar mais memoria",
+            "gasta mais memoria",
+            "gastar mais ram",
+            "gasta mais ram",
+            "usar mais memoria",
+            "usa mais memoria",
+            "usar mais ram",
+            "usa mais ram",
+            "consumir mais memoria",
+            "consome mais memoria",
+        ]
+
+        if any(
+            keyword in normalized
+            for keyword in process_list_keywords
+        ):
+            return {
+                "tool": "process_manager",
+                "action": "list",
+                "result": self.process_manager.list_processes(10),
+            }
+
+        if any(
+            keyword in normalized
+            for keyword in ram_keywords
+        ):
+            return {
+                "tool": "process_manager",
+                "action": "list",
+                "result": self.process_manager.list_processes(10),
+            }
+
+        # --------------------------------------------------
+        # CHECK IF APP IS RUNNING
+        # --------------------------------------------------
+
+        running_patterns = [
+            r"^(?:o |a )?(.+?) esta aberto$",
+            r"^(?:o |a )?(.+?) esta aberta$",
+            r"^(?:o |a )?(.+?) esta a correr$",
+            r"^(?:o |a )?(.+?) esta em execucao$",
+            r"^tenho (?:o |a )?(.+?) aberto$",
+            r"^tenho (?:o |a )?(.+?) aberta$",
+            r"^(.+?) esta aberto no computador$",
+            r"^(.+?) esta aberto no pc$",
+        ]
+
+        for pattern in running_patterns:
+            match = re.match(
+                pattern,
+                normalized,
+            )
+
+            if match:
+                target = match.group(1).strip()
+                target = self._normalize_process_name(target)
+
+                return {
+                    "tool": "process_manager",
+                    "action": "is_running",
+                    "target": target,
+                    "result": self.process_manager.is_running(target),
+                }
+
+        # --------------------------------------------------
+        # CLOSE APPLICATION
+        # --------------------------------------------------
+
+        close_patterns = [
+            r"^(?:fecha|fechar) (?:o |a )?(.+)$",
+            r"^(?:encerra|encerrar) (?:o |a )?(.+)$",
+            r"^(?:termina|terminar) (?:o |a )?(.+)$",
+            r"^(?:desliga|desligar) (?:o |a )?(.+)$",
+        ]
+
+        for pattern in close_patterns:
+            match = re.match(
+                pattern,
+                normalized,
+            )
+
+            if match:
+                target = match.group(1).strip()
+                target = self._normalize_process_name(target)
+
+                return {
+                    "tool": "process_manager",
+                    "action": "close_request",
+                    "target": target,
+                    "requires_confirmation": True,
+                }
+
+        # --------------------------------------------------
+        # OPEN APPLICATION / LOCATION
+        # --------------------------------------------------
+
+        open_patterns = [
+            r"^(?:abre|abrir) (?:o |a |os |as )?(.+)$",
+            r"^quero abrir (?:o |a )?(.+)$",
+            r"^quero que abras (?:o |a )?(.+)$",
+            r"^inicia (?:o |a )?(.+)$",
+            r"^iniciar (?:o |a )?(.+)$",
+            r"^lanca (?:o |a )?(.+)$",
+            r"^lancar (?:o |a )?(.+)$",
+        ]
+
+        for pattern in open_patterns:
+            match = re.match(
+                pattern,
+                normalized,
+            )
+
+            if match:
+                target = match.group(1).strip()
+
+                return {
+                    "tool": "app_launcher",
+                    "action": "open",
+                    "target": target,
+                    "result": self.app_launcher.run(target),
+                }
+
+        # --------------------------------------------------
+        # DISK INFO
+        # --------------------------------------------------
+
+        disk_keywords = [
+            "quanto espaco tenho",
+            "espaco livre",
+            "espaco no disco",
+            "armazenamento livre",
+            "quanto armazenamento tenho",
+            "quanto tenho de armazenamento",
+            "quanto disco tenho",
+        ]
+
+        if any(
+            keyword in normalized
+            for keyword in disk_keywords
+        ):
+            return {
+                "tool": "disk_info",
+                "action": "info",
+                "result": self.disk_info.run(),
+            }
+
+        # --------------------------------------------------
+        # SYSTEM INFO
+        # --------------------------------------------------
+
+        system_keywords = [
+            "que sistema operativo",
+            "qual sistema operativo",
+            "informacoes do sistema",
+            "informacao do pc",
+            "informacoes do pc",
+            "quantos nucleos",
+            "quantos processadores logicos",
+            "qual e o meu cpu",
+            "que cpu tenho",
+        ]
+
+        if any(
+            keyword in normalized
+            for keyword in system_keywords
+        ):
+            return {
+                "tool": "system_info",
+                "action": "info",
+                "result": self.system_info.run(),
+            }
+
+        # --------------------------------------------------
+        # CREATE FOLDER
+        # --------------------------------------------------
+
+        folder_patterns = [
+            r"^(?:cria|criar) uma pasta chamada (.+)$",
+            r"^(?:cria|criar) uma pasta com o nome (.+)$",
+            r"^(?:cria|criar) pasta chamada (.+)$",
+            r"^(?:cria|criar) pasta (.+)$",
+        ]
+
+        for pattern in folder_patterns:
+            match = re.match(
+                pattern,
+                normalized,
+            )
+
+            if match:
+                folder_name = match.group(1).strip().strip("\"'")
+
+                desktop = Path.home() / "Desktop"
+                target = desktop / folder_name
+
+                return {
+                    "tool": "file_manager",
+                    "action": "create_folder",
+                    "target": str(target),
+                    "result": self.file_manager.create_folder(
+                        str(target)
+                    ),
+                }
+
+        # --------------------------------------------------
+        # CREATE FOLDER WITH EXPLICIT DESKTOP LANGUAGE
+        # --------------------------------------------------
+
+        desktop_folder_patterns = [
+            r"^cria uma pasta no ambiente de trabalho chamada (.+)$",
+            r"^cria uma pasta no desktop chamada (.+)$",
+            r"^cria no desktop uma pasta chamada (.+)$",
+            r"^cria no ambiente de trabalho uma pasta chamada (.+)$",
+        ]
+
+        for pattern in desktop_folder_patterns:
+            match = re.match(
+                pattern,
+                normalized,
+            )
+
+            if match:
+                folder_name = match.group(1).strip().strip("\"'")
+
+                target = (
+                    Path.home()
+                    / "Desktop"
+                    / folder_name
+                )
+
+                return {
+                    "tool": "file_manager",
+                    "action": "create_folder",
+                    "target": str(target),
+                    "result": self.file_manager.create_folder(
+                        str(target)
+                    ),
+                }
+
+        return None
+
+    # --------------------------------------------------
+    # CONFIRMED ACTIONS
+    # --------------------------------------------------
+
+    def execute_confirmed_action(
+        self,
+        tool: str,
+        action: str,
+        target: str,
+    ) -> dict:
+
+        if (
+            tool == "process_manager"
+            and action == "close"
+        ):
+            return self.process_manager.close(target)
+
+        return {
+            "sucesso": False,
+            "erro": "Ação confirmada desconhecida.",
+        }
