@@ -34,10 +34,9 @@ class PreflightDecision:
 class StateObserver:
     """Observe a narrow, read-only subset of the local computer state.
 
-    Security boundary: observation can only prevent redundant work or describe
-    current state. It cannot approve an action, add permissions, launch or close
-    software, delete data, or turn a read observation into a destructive action.
-    PermissionManager remains authoritative for every executable action.
+    Observation can prevent redundant work or describe current state. It cannot
+    approve actions, grant permissions, launch/close software or delete data.
+    PermissionManager remains authoritative for executable actions.
     """
 
     MAX_OBSERVED_APPS = 6
@@ -110,7 +109,6 @@ class StateObserver:
 
     def observe_request(self, request: str) -> str:
         """Return compact read-only facts relevant to one user request."""
-
         text = self._normalize(request)
         observations: list[str] = []
 
@@ -118,11 +116,9 @@ class StateObserver:
             state = self.process_manager.is_running(process_name)
             if not state.get("sucesso"):
                 continue
-
-            running = bool(state.get("em_execucao"))
             observations.append(
                 f"application {label!r}: "
-                f"{'running' if running else 'not running'}"
+                f"{'running' if state.get('em_execucao') else 'not running'}"
             )
 
         if any(hint in text for hint in self.DISK_CONTEXT_HINTS):
@@ -130,16 +126,14 @@ class StateObserver:
             disk = self.disk_info.run(disk_path)
             if disk.get("sucesso"):
                 free_gb = disk.get("livre_gb")
-                used_percent = disk.get("percentagem_usada")
-                health = self._disk_health(free_gb)
                 observations.append(
                     f"disk {disk.get('disco', disk_path)!r}: "
-                    f"{free_gb} GB free, {used_percent}% used, {health}"
+                    f"{free_gb} GB free, {disk.get('percentagem_usada')}% used, "
+                    f"{self._disk_health(free_gb)}"
                 )
 
         if not observations:
             return "(no relevant state observed)"
-
         return "\n".join(f"- {item}" for item in observations)
 
     def preflight(
@@ -149,7 +143,6 @@ class StateObserver:
         arguments: dict[str, Any],
     ) -> PreflightDecision | None:
         """Skip an action only when its desired state is already satisfied."""
-
         if tool == "app_launcher" and action == "open":
             target = arguments.get("target")
             if not isinstance(target, str) or not target.strip():
@@ -238,24 +231,17 @@ class StateObserver:
         normalized = cls._normalize(target)
         if not normalized or normalized in cls.LOCATION_TARGETS:
             return None
-
         if normalized.endswith(".exe"):
             normalized = normalized[:-4]
-
         if normalized in cls.PROCESS_ALIASES:
             return cls.PROCESS_ALIASES[normalized]
 
-        for alias in sorted(
-            cls.PROCESS_ALIASES,
-            key=len,
-            reverse=True,
-        ):
+        for alias in sorted(cls.PROCESS_ALIASES, key=len, reverse=True):
             if re.search(
                 rf"(?:^|\s){re.escape(alias)}(?:\s|$)",
                 normalized,
             ):
                 return cls.PROCESS_ALIASES[alias]
-
         return None
 
     @classmethod
@@ -264,12 +250,8 @@ class StateObserver:
         seen_processes: set[str] = set()
 
         for alias in sorted(cls.PROCESS_ALIASES, key=len, reverse=True):
-            if not re.search(
-                rf"\b{re.escape(alias)}\b",
-                normalized_request,
-            ):
+            if not re.search(rf"\b{re.escape(alias)}\b", normalized_request):
                 continue
-
             process_name = cls.PROCESS_ALIASES[alias]
             if process_name in seen_processes:
                 continue
@@ -278,7 +260,6 @@ class StateObserver:
             matches.append((alias, process_name))
             if len(matches) >= cls.MAX_OBSERVED_APPS:
                 break
-
         return matches
 
     @classmethod
