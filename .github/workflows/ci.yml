@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   planner:
-    name: Intelligent Agent Runtime v1.3
+    name: Intelligent Agent Runtime v1.4
     runs-on: ubuntu-latest
 
     steps:
@@ -31,6 +31,7 @@ jobs:
         run: >-
           python -m py_compile
           aura.py
+          aura/tools/system_state.py
           aura/agent/action_executor.py
           aura/agent/intelligent_planner.py
           aura/agent/recovery_planner.py
@@ -47,3 +48,4 @@ jobs:
           tests/test_plan_executor.py
           tests/test_recovery_planner.py
           tests/test_state_observer.py
+          tests/test_system_state.py
