@@ -16,6 +16,7 @@ TOP_LEVEL = (
     "aura.py",
     "aura_web.py",
     "aura_desktop.py",
+    "iniciar_aura.bat",
     "iniciar_aura_web.bat",
     "instalar_aura_windows.bat",
     "requirements-runtime.txt",
