@@ -9,13 +9,11 @@ from aura.agent.planner import Plan
 
 
 class IntelligentPlanner:
-    """
-    Converts natural-language requests into structured plans.
+    """Convert natural-language computer requests into safe structured plans.
 
-    IMPORTANT:
-    The model only proposes actions.
-
-    It never executes tools directly.
+    The model is only allowed to *propose* actions. Every proposed action is
+    validated here and is later executed through AURA's PermissionManager.
+    Planning is isolated from the normal conversation memory.
     """
 
     MAX_ACTIONS = 8
@@ -30,6 +28,70 @@ class IntelligentPlanner:
         ("file_manager", "create_folder"),
     }
 
+    ACTION_HINTS = {
+        "abre",
+        "abrir",
+        "inicia",
+        "iniciar",
+        "lança",
+        "lanca",
+        "launch",
+        "open",
+        "fecha",
+        "fechar",
+        "close",
+        "cria",
+        "criar",
+        "create",
+        "prepara",
+        "preparar",
+        "prepare",
+        "verifica",
+        "verificar",
+        "check",
+        "lista",
+        "listar",
+        "list",
+    }
+
+    COMPUTER_HINTS = {
+        "app",
+        "aplicação",
+        "aplicacao",
+        "programa",
+        "processo",
+        "processos",
+        "pasta",
+        "pastas",
+        "computador",
+        "pc",
+        "windows",
+        "sistema",
+        "disco",
+        "armazenamento",
+        "espaço",
+        "espaco",
+        "obs",
+        "brave",
+        "notion",
+        "after effects",
+        "illustrator",
+        "downloads",
+    }
+
+    STATE_HINTS = {
+        "está aberto",
+        "esta aberto",
+        "está a correr",
+        "esta a correr",
+        "em execução",
+        "em execucao",
+        "espaço livre",
+        "espaco livre",
+        "quanto espaço",
+        "quanto espaco",
+    }
+
     def __init__(self, assistant):
         self.assistant = assistant
 
@@ -37,23 +99,54 @@ class IntelligentPlanner:
     # PUBLIC API
     # --------------------------------------------------
 
+    def should_attempt(self, request: str) -> bool:
+        """Cheaply decide whether the local model should be used as a planner.
+
+        Clear single-tool requests are expected to be handled by ToolRouter
+        before this planner is reached. This gate mainly prevents a second
+        local-model inference for ordinary conversation.
+        """
+
+        text = request.strip().lower()
+        if not text:
+            return False
+
+        if any(hint in text for hint in self.STATE_HINTS):
+            return True
+
+        has_action = any(
+            re.search(rf"\b{re.escape(hint)}\b", text)
+            for hint in self.ACTION_HINTS
+        )
+        has_computer_target = any(
+            hint in text
+            for hint in self.COMPUTER_HINTS
+        )
+
+        return has_action and has_computer_target
+
     def create_plan(
         self,
         request: str,
     ) -> Plan | None:
+        if not self.should_attempt(request):
+            return None
 
-        prompt = self._build_prompt(
-            request
+        prompt = self._build_prompt(request)
+
+        # IMPORTANT: do not use assistant.chat() here. chat() writes both the
+        # planner prompt and its response into normal conversation memory and
+        # can also route tools. Planning must be an isolated model inference.
+        response = self.assistant.runtime.generate(
+            [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ]
         )
 
-        response = self.assistant.chat(
-            prompt
-        )
-
-        data = self._extract_json(
-            response
-        )
-
+        data = self._extract_json(response)
         if data is None:
             return None
 
@@ -70,18 +163,17 @@ class IntelligentPlanner:
         self,
         request: str,
     ) -> str:
-
         return f"""
 You are the planning component of AURA-1.
 
-Your ONLY job is to convert a user request into a
-small structured plan using the allowed actions below.
+Your ONLY job is to convert the user's computer-action request into a small
+structured plan using only the allowed actions below.
 
 You DO NOT execute anything.
-You DO NOT write PowerShell.
-You DO NOT write shell commands.
-You DO NOT write Python.
-You DO NOT invent tools.
+You DO NOT answer the user.
+You DO NOT write PowerShell, shell, CMD, Python, URLs, or code.
+You DO NOT invent tools or arguments.
+You MUST use only the exact argument names shown below.
 
 ALLOWED ACTIONS:
 
@@ -113,11 +205,7 @@ Arguments:
 Arguments:
 {{"path": "absolute Windows path"}}
 
-Return ONLY valid JSON.
-
-Do not use Markdown.
-Do not use ```json.
-Do not explain your answer.
+Return ONLY valid JSON. No Markdown and no explanation.
 
 Schema:
 
@@ -134,8 +222,8 @@ Schema:
   ]
 }}
 
-If the request is just a normal question or conversation
-and does not require actions on the computer, return:
+If the request is not a computer action, cannot be completed with the exact
+allowed actions, or would require guessing a required path or target, return:
 
 {{
   "should_plan": false,
@@ -146,7 +234,6 @@ and does not require actions on the computer, return:
 Maximum actions: {self.MAX_ACTIONS}.
 
 USER REQUEST:
-
 {request}
 """.strip()
 
@@ -158,18 +245,15 @@ USER REQUEST:
     def _extract_json(
         response: str,
     ) -> dict[str, Any] | None:
-
         text = response.strip()
 
-        # Remove Markdown fences if the model ignores
-        # the instruction.
+        # Tolerate Markdown fences if the model ignores the output rule.
         text = re.sub(
             r"^```(?:json)?\s*",
             "",
             text,
             flags=re.IGNORECASE,
         )
-
         text = re.sub(
             r"\s*```$",
             "",
@@ -177,49 +261,24 @@ USER REQUEST:
         )
 
         try:
-            data = json.loads(
-                text
-            )
-
-            if isinstance(
-                data,
-                dict,
-            ):
+            data = json.loads(text)
+            if isinstance(data, dict):
                 return data
-
         except json.JSONDecodeError:
             pass
 
-        # Try to recover the first JSON object.
+        # Recover one JSON object surrounded by harmless model prose.
         start = text.find("{")
         end = text.rfind("}")
-
-        if (
-            start == -1
-            or end == -1
-            or end <= start
-        ):
+        if start == -1 or end == -1 or end <= start:
             return None
 
-        candidate = text[
-            start : end + 1
-        ]
-
         try:
-            data = json.loads(
-                candidate
-            )
-
-            if isinstance(
-                data,
-                dict,
-            ):
-                return data
-
+            data = json.loads(text[start : end + 1])
         except json.JSONDecodeError:
             return None
 
-        return None
+        return data if isinstance(data, dict) else None
 
     # --------------------------------------------------
     # PLAN BUILDING + VALIDATION
@@ -230,82 +289,31 @@ USER REQUEST:
         request: str,
         data: dict[str, Any],
     ) -> Plan | None:
-
-        if (
-            data.get("should_plan")
-            is not True
-        ):
+        if data.get("should_plan") is not True:
             return None
 
-        raw_actions = data.get(
-            "actions"
-        )
-
-        if not isinstance(
-            raw_actions,
-            list,
-        ):
+        raw_actions = data.get("actions")
+        if not isinstance(raw_actions, list):
             return None
-
-        if not raw_actions:
-            return None
-
-        if (
-            len(raw_actions)
-            > self.MAX_ACTIONS
-        ):
+        if not raw_actions or len(raw_actions) > self.MAX_ACTIONS:
             return None
 
         actions: list[PlanAction] = []
 
         for raw_action in raw_actions:
-
-            if not isinstance(
-                raw_action,
-                dict,
-            ):
+            if not isinstance(raw_action, dict):
                 return None
 
-            tool = raw_action.get(
-                "tool"
-            )
-
-            action = raw_action.get(
-                "action"
-            )
-
-            if not isinstance(
-                tool,
-                str,
-            ):
+            tool = raw_action.get("tool")
+            action = raw_action.get("action")
+            if not isinstance(tool, str) or not isinstance(action, str):
                 return None
 
-            if not isinstance(
-                action,
-                str,
-            ):
+            if (tool, action) not in self.ALLOWED_ACTIONS:
                 return None
 
-            signature = (
-                tool,
-                action,
-            )
-
-            if (
-                signature
-                not in self.ALLOWED_ACTIONS
-            ):
-                return None
-
-            arguments = raw_action.get(
-                "arguments",
-                {},
-            )
-
-            if not isinstance(
-                arguments,
-                dict,
-            ):
+            arguments = raw_action.get("arguments", {})
+            if not isinstance(arguments, dict):
                 return None
 
             if not self._validate_arguments(
@@ -319,21 +327,15 @@ USER REQUEST:
                 "description",
                 f"{tool}.{action}",
             )
-
-            if not isinstance(
-                description,
-                str,
-            ):
-                description = (
-                    f"{tool}.{action}"
-                )
+            if not isinstance(description, str) or not description.strip():
+                description = f"{tool}.{action}"
 
             actions.append(
                 PlanAction(
                     tool=tool,
                     action=action,
                     arguments=arguments,
-                    description=description,
+                    description=description.strip(),
                 )
             )
 
@@ -341,17 +343,13 @@ USER REQUEST:
             "description",
             "Plano AURA",
         )
-
-        if not isinstance(
-            description,
-            str,
-        ):
+        if not isinstance(description, str) or not description.strip():
             description = "Plano AURA"
 
         return Plan(
             request=request,
             actions=actions,
-            description=description,
+            description=description.strip(),
         )
 
     # --------------------------------------------------
@@ -364,91 +362,51 @@ USER REQUEST:
         action: str,
         arguments: dict[str, Any],
     ) -> bool:
-
-        # No arguments required.
         if (
-            tool == "disk_info"
-            and action == "info"
+            (tool, action)
+            in {
+                ("disk_info", "info"),
+                ("system_info", "info"),
+            }
         ):
-            return True
+            return arguments == {}
 
-        if (
-            tool == "system_info"
-            and action == "info"
-        ):
-            return True
+        if tool == "app_launcher" and action == "open":
+            if set(arguments) != {"target"}:
+                return False
+            target = arguments.get("target")
+            return isinstance(target, str) and bool(target.strip())
 
-        # App launcher.
-        if (
-            tool == "app_launcher"
-            and action == "open"
-        ):
-            target = arguments.get(
-                "target"
-            )
-
-            return (
-                isinstance(target, str)
-                and bool(target.strip())
-            )
-
-        # Process list.
-        if (
-            tool == "process_manager"
-            and action == "list"
-        ):
-            limit = arguments.get(
-                "limit",
-                10,
-            )
-
+        if tool == "process_manager" and action == "list":
+            if not set(arguments).issubset({"limit"}):
+                return False
+            limit = arguments.get("limit", 10)
             return (
                 isinstance(limit, int)
+                and not isinstance(limit, bool)
                 and 1 <= limit <= 50
             )
 
-        # Process operations.
         if (
             tool == "process_manager"
-            and action
-            in {
-                "is_running",
-                "close",
-            }
+            and action in {"is_running", "close"}
         ):
-            target = arguments.get(
-                "target"
-            )
-
-            return (
-                isinstance(target, str)
-                and bool(target.strip())
-            )
-
-        # Folder creation.
-        if (
-            tool == "file_manager"
-            and action == "create_folder"
-        ):
-            path = arguments.get(
-                "path"
-            )
-
-            if not isinstance(
-                path,
-                str,
-            ):
+            if set(arguments) != {"target"}:
                 return False
+            target = arguments.get("target")
+            return isinstance(target, str) and bool(target.strip())
 
-            path = path.strip()
-
-            # Require an absolute Windows path.
-            if not re.match(
-                r"^[A-Za-z]:[\\/]",
-                path,
-            ):
+        if tool == "file_manager" and action == "create_folder":
+            if set(arguments) != {"path"}:
                 return False
-
-            return True
+            path = arguments.get("path")
+            if not isinstance(path, str):
+                return False
+            return bool(
+                re.match(
+                    r"^[A-Za-z]:[\\/]",
+                    path.strip(),
+                )
+            )
 
         return False
