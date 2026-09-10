@@ -8,6 +8,7 @@
   <title>AURA-1 · Untoz</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/agent.css">
 </head>
 <body>
   <main class="shell">
@@ -19,29 +20,43 @@
       <button id="newChat" class="new-chat"><span>＋</span> New conversation</button>
       <div class="info-card">
         <div class="status-line"><span id="statusDot" class="dot loading"></span><span id="statusText">Starting model…</span></div>
-        <dl><div><dt>Model</dt><dd id="modelName">Loading</dd></div><div><dt>Profile</dt><dd id="profileName">—</dd></div></dl>
+        <dl>
+          <div><dt>Model</dt><dd id="modelName">Loading</dd></div>
+          <div><dt>Profile</dt><dd id="profileName">—</dd></div>
+          <div><dt>Agent Runtime</dt><dd id="runtimeName">—</dd></div>
+        </dl>
+      </div>
+      <div class="system-card">
+        <div class="section-title"><span>Computer</span><small>Live · local only</small></div>
+        <div class="metric-grid">
+          <div><span>CPU</span><b id="cpuValue">—</b></div>
+          <div><span>RAM</span><b id="ramValue">—</b></div>
+          <div><span>Pressure</span><b id="pressureValue" data-pressure="normal">—</b></div>
+          <div><span>Battery</span><b id="batteryValue">—</b></div>
+        </div>
+        <p class="foreground">Foreground <b id="foregroundValue">—</b></p>
       </div>
       <div class="capabilities"><p>Local capabilities</p><div id="toolList" class="chips"><span>Memory</span></div></div>
-      <p class="privacy"><b>AI that lives on your computer.</b><br>Local processing. Private conversations.</p>
+      <p class="privacy"><b>AI that lives on your computer.</b><br>Local processing. Private conversations. Protected actions always ask first.</p>
     </aside>
     <section class="workspace">
-      <header><button id="menuButton" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">☰</button><div><span>AURA-1</span><small>Local AI assistant</small></div></header>
+      <header><button id="menuButton" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">☰</button><div><span>AURA-1</span><small>Local intelligent agent</small></div><div class="header-badge"><i></i> Runtime v1.4</div></header>
       <div id="conversation" class="conversation" aria-live="polite">
         <div class="welcome">
           <div id="mainCore" class="aura-core aura-core--hero" data-aura-state="idle" role="img" aria-label="AURA Core, idle"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
           <p class="eyebrow">AURA-1 BY UNTOZ</p>
           <h1>How can I help?</h1>
-          <p>AI that lives on your computer.</p>
+          <p>Chat, inspect your PC and carry out local actions — with permission boundaries built in.</p>
           <div class="suggestions">
-            <button data-prompt="How much RAM do I have?"><b>Computer status</b><span>View memory and system</span></button>
-            <button data-prompt="What files are in this folder?"><b>Explore the project</b><span>List local files</span></button>
-            <button data-prompt="Explain artificial intelligence in simple terms."><b>Learn something</b><span>Ask a question</span></button>
+            <button data-prompt="Porque é que o meu PC está lento?"><b>Diagnose my PC</b><span>CPU, RAM and system pressure</span></button>
+            <button data-prompt="Prepara o PC para uma live com OBS e Brave."><b>Prepare a live</b><span>Observe, plan and open what is needed</span></button>
+            <button data-prompt="Abre o OBS."><b>Open an app</b><span>Use AURA App Discovery</span></button>
           </div>
         </div>
       </div>
       <div class="composer-wrap">
-        <form id="composer"><textarea id="message" rows="1" maxlength="4096" placeholder="Message AURA…" disabled></textarea><button id="send" type="submit" aria-label="Send" disabled>↑</button></form>
-        <p><span class="local-indicator"></span>Local AI · Private by design · AURA-1 Alpha</p>
+        <form id="composer"><textarea id="message" rows="1" maxlength="4096" placeholder="Ask AURA or tell it what to do…" disabled></textarea><button id="send" type="submit" aria-label="Send" disabled>↑</button></form>
+        <p><span class="local-indicator"></span>Local AI · State-aware · Protected actions require approval · AURA-1 Alpha</p>
       </div>
     </section>
   </main>
