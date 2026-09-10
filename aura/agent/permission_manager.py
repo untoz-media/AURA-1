@@ -44,6 +44,7 @@ class PermissionManager:
 
         ("system_info", "info"): PermissionLevel.READ,
         ("disk_info", "info"): PermissionLevel.READ,
+        ("system_state", "snapshot"): PermissionLevel.READ,
 
         # ----------------------------------------------
         # APPLICATIONS
