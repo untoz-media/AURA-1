@@ -46,6 +46,7 @@ class PlanExecutor:
     READ_ONLY_ACTIONS = {
         ("disk_info", "info"),
         ("system_info", "info"),
+        ("system_state", "snapshot"),
         ("process_manager", "list"),
         ("process_manager", "is_running"),
     }
