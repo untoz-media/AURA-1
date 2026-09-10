@@ -5,4 +5,5 @@ torch>=2.7
 transformers>=5.0
 accelerate>=1.0
 bitsandbytes>=0.45
+psutil>=6.1
 tzdata>=2025.1

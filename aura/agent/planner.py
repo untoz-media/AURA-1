@@ -27,6 +27,7 @@ class Planner:
     ALLOWED_ACTIONS = {
         ("disk_info", "info"),
         ("system_info", "info"),
+        ("system_state", "snapshot"),
         ("app_launcher", "open"),
         ("process_manager", "list"),
         ("process_manager", "is_running"),
@@ -41,10 +42,6 @@ class Planner:
 
         text = request.strip().lower()
 
-        # ----------------------------------------------
-        # WORK / UNTOZ
-        # ----------------------------------------------
-
         work_patterns = [
             "prepara o computador para trabalhar",
             "prepara o pc para trabalhar",
@@ -56,10 +53,7 @@ class Planner:
             "comecar a trabalhar no untoz",
         ]
 
-        if any(
-            pattern in text
-            for pattern in work_patterns
-        ):
+        if any(pattern in text for pattern in work_patterns):
             return Plan(
                 request=request,
                 description=(
@@ -70,32 +64,22 @@ class Planner:
                     PlanAction(
                         tool="disk_info",
                         action="info",
-                        description=(
-                            "Verificar armazenamento."
-                        ),
+                        description="Verificar armazenamento.",
                     ),
                     PlanAction(
                         tool="app_launcher",
                         action="open",
-                        arguments={
-                            "target": "Brave",
-                        },
+                        arguments={"target": "Brave"},
                         description="Abrir Brave.",
                     ),
                     PlanAction(
                         tool="app_launcher",
                         action="open",
-                        arguments={
-                            "target": "Notion",
-                        },
+                        arguments={"target": "Notion"},
                         description="Abrir Notion.",
                     ),
                 ],
             )
-
-        # ----------------------------------------------
-        # VIDEO EDITING
-        # ----------------------------------------------
 
         video_patterns = [
             "prepara o computador para editar video",
@@ -105,40 +89,29 @@ class Planner:
             "prepara tudo para editar",
         ]
 
-        if any(
-            pattern in text
-            for pattern in video_patterns
-        ):
+        if any(pattern in text for pattern in video_patterns):
             return Plan(
                 request=request,
-                description=(
-                    "Preparar ambiente "
-                    "para edição de vídeo."
-                ),
+                description="Preparar ambiente para edição de vídeo.",
                 actions=[
+                    PlanAction(
+                        tool="system_state",
+                        action="snapshot",
+                        description="Verificar carga atual do sistema.",
+                    ),
                     PlanAction(
                         tool="disk_info",
                         action="info",
-                        description=(
-                            "Verificar espaço disponível."
-                        ),
+                        description="Verificar espaço disponível.",
                     ),
                     PlanAction(
                         tool="app_launcher",
                         action="open",
-                        arguments={
-                            "target": "After Effects",
-                        },
-                        description=(
-                            "Abrir After Effects."
-                        ),
+                        arguments={"target": "After Effects"},
+                        description="Abrir After Effects.",
                     ),
                 ],
             )
-
-        # ----------------------------------------------
-        # STREAMING / LIVE
-        # ----------------------------------------------
 
         live_patterns = [
             "prepara o computador para uma live",
@@ -148,37 +121,31 @@ class Planner:
             "prepara uma live",
         ]
 
-        if any(
-            pattern in text
-            for pattern in live_patterns
-        ):
+        if any(pattern in text for pattern in live_patterns):
             return Plan(
                 request=request,
-                description=(
-                    "Preparar ambiente para live."
-                ),
+                description="Preparar ambiente para live.",
                 actions=[
+                    PlanAction(
+                        tool="system_state",
+                        action="snapshot",
+                        description="Verificar carga atual do sistema.",
+                    ),
                     PlanAction(
                         tool="system_info",
                         action="info",
-                        description=(
-                            "Verificar sistema."
-                        ),
+                        description="Verificar sistema.",
                     ),
                     PlanAction(
                         tool="app_launcher",
                         action="open",
-                        arguments={
-                            "target": "OBS",
-                        },
+                        arguments={"target": "OBS"},
                         description="Abrir OBS.",
                     ),
                     PlanAction(
                         tool="app_launcher",
                         action="open",
-                        arguments={
-                            "target": "Brave",
-                        },
+                        arguments={"target": "Brave"},
                         description="Abrir Brave.",
                     ),
                 ],
@@ -197,26 +164,19 @@ class Planner:
                 "O plano não contém ações.",
             )
 
-        if (
-            len(plan.actions)
-            > self.MAX_ACTIONS
-        ):
+        if len(plan.actions) > self.MAX_ACTIONS:
             return (
                 False,
                 "O plano contém demasiadas ações.",
             )
 
         for action in plan.actions:
-
             signature = (
                 action.tool,
                 action.action,
             )
 
-            if (
-                signature
-                not in self.ALLOWED_ACTIONS
-            ):
+            if signature not in self.ALLOWED_ACTIONS:
                 return (
                     False,
                     "Ação não autorizada no Planner: "

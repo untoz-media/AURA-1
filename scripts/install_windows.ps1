@@ -18,10 +18,31 @@ if (-not (Test-Path -LiteralPath ".venv\Scripts\python.exe")) {
 }
 
 $AuraPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-Write-Host "A instalar as dependencias da AURA-1..."
+$AuraPythonw = Join-Path $ProjectRoot ".venv\Scripts\pythonw.exe"
+Write-Host "A instalar a AURA-1 Desktop e as dependencias locais..."
 & $AuraPython -m pip install --upgrade pip
-& $AuraPython -m pip install -r requirements-runtime.txt
+& $AuraPython -m pip install -r requirements-desktop.txt
+
+if (-not (Test-Path -LiteralPath $AuraPythonw)) {
+    throw "A instalacao terminou sem encontrar pythonw.exe no ambiente da AURA-1."
+}
+
+$Launcher = Join-Path $ProjectRoot "aura_desktop.py"
+$ShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "AURA-1 Alpha 2.lnk"
+try {
+    $Shell = New-Object -ComObject WScript.Shell
+    $Shortcut = $Shell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = $AuraPythonw
+    $Shortcut.Arguments = ('"{0}"' -f $Launcher)
+    $Shortcut.WorkingDirectory = $ProjectRoot
+    $Shortcut.Description = "AURA-1 Alpha 2 by Untoz"
+    $Shortcut.Save()
+    Write-Host "Atalho criado no Ambiente de Trabalho."
+} catch {
+    Write-Warning "Nao foi possivel criar o atalho. Podes usar iniciar_aura.bat."
+}
 
 Write-Host ""
-Write-Host "AURA-1 Alpha instalada com sucesso." -ForegroundColor Green
-Write-Host "No primeiro arranque, o modelo Qwen sera descarregado e pode ocupar varios GB."
+Write-Host "AURA-1 Alpha 2 instalada com sucesso." -ForegroundColor Green
+Write-Host "Abre o atalho AURA-1 Alpha 2 ou executa iniciar_aura.bat."
+Write-Host "No primeiro arranque, o modelo Qwen pode ser descarregado e ocupar varios GB."

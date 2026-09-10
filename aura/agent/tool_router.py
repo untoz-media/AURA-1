@@ -4,6 +4,7 @@ import re
 import unicodedata
 from pathlib import Path
 
+from aura.agent.state_observer import StateObserver
 from aura.tools.app_launcher import AppLauncherTool
 from aura.tools.disk_info import DiskInfoTool
 from aura.tools.file_manager import FileManagerTool
@@ -12,30 +13,25 @@ from aura.tools.system_info import SystemInfoTool
 
 
 class ToolRouter:
-    def __init__(self):
+    def __init__(self, state_observer: StateObserver | None = None):
         self.app_launcher = AppLauncherTool()
         self.disk_info = DiskInfoTool()
         self.file_manager = FileManagerTool()
         self.process_manager = ProcessManagerTool()
         self.system_info = SystemInfoTool()
-
-    # --------------------------------------------------
-    # NORMALIZATION
-    # --------------------------------------------------
+        self.state_observer = state_observer or StateObserver()
+        self.system_state = self.state_observer.system_state
 
     @staticmethod
     def _normalize_text(text: str) -> str:
         text = text.strip().lower()
-
         text = "".join(
             char
             for char in unicodedata.normalize("NFD", text)
             if unicodedata.category(char) != "Mn"
         )
-
         text = re.sub(r"[!?.,;:]+", " ", text)
         text = re.sub(r"\s+", " ", text)
-
         return text.strip()
 
     @staticmethod
@@ -58,9 +54,7 @@ class ToolRouter:
             "obs": "obs64",
             "obs studio": "obs64",
         }
-
         cleaned = ToolRouter._normalize_text(name)
-
         return aliases.get(cleaned, cleaned)
 
     @staticmethod
@@ -81,33 +75,69 @@ class ToolRouter:
         ]
 
         changed = True
-
         while changed:
             changed = False
-
             for prefix in prefixes:
                 if text.startswith(prefix):
                     text = text[len(prefix):].strip()
                     changed = True
-
         return text
 
-    # --------------------------------------------------
-    # MAIN ROUTER
-    # --------------------------------------------------
+    def _preflight(
+        self,
+        tool: str,
+        action: str,
+        arguments: dict,
+    ) -> dict | None:
+        """Return a satisfied-state result without changing the computer."""
+        try:
+            decision = self.state_observer.preflight(tool, action, arguments)
+        except Exception:
+            return None
+        if decision is not None and decision.skip:
+            return decision.result or {
+                "sucesso": True,
+                "acao": "estado_satisfeito",
+            }
+        return None
 
     def route(self, message: str) -> dict | None:
         raw_text = message.strip()
-
         normalized = self._normalize_text(raw_text)
         normalized = self._strip_polite_prefix(normalized)
 
         if not normalized:
             return None
 
-        # --------------------------------------------------
-        # PROCESS LIST / RAM
-        # --------------------------------------------------
+        performance_keywords = [
+            "o pc esta lento",
+            "o computador esta lento",
+            "porque e que o pc esta lento",
+            "porque e que o computador esta lento",
+            "porque esta lento",
+            "estado do pc",
+            "estado do computador",
+            "desempenho do pc",
+            "desempenho do computador",
+            "performance do pc",
+            "uso de cpu",
+            "utilizacao de cpu",
+            "quanto cpu estou a usar",
+            "uso de ram",
+            "utilizacao de ram",
+            "quanto ram estou a usar",
+            "memoria usada",
+            "estado da bateria",
+            "quanto tenho de bateria",
+            "nivel da bateria",
+        ]
+
+        if any(keyword in normalized for keyword in performance_keywords):
+            return {
+                "tool": "system_state",
+                "action": "snapshot",
+                "result": self.system_state.snapshot(),
+            }
 
         process_list_keywords = [
             "programas abertos",
@@ -138,29 +168,19 @@ class ToolRouter:
             "consome mais memoria",
         ]
 
-        if any(
-            keyword in normalized
-            for keyword in process_list_keywords
-        ):
+        if any(keyword in normalized for keyword in process_list_keywords):
             return {
                 "tool": "process_manager",
                 "action": "list",
                 "result": self.process_manager.list_processes(10),
             }
 
-        if any(
-            keyword in normalized
-            for keyword in ram_keywords
-        ):
+        if any(keyword in normalized for keyword in ram_keywords):
             return {
                 "tool": "process_manager",
                 "action": "list",
                 "result": self.process_manager.list_processes(10),
             }
-
-        # --------------------------------------------------
-        # CHECK IF APP IS RUNNING
-        # --------------------------------------------------
 
         running_patterns = [
             r"^(?:o |a )?(.+?) esta aberto$",
@@ -174,25 +194,15 @@ class ToolRouter:
         ]
 
         for pattern in running_patterns:
-            match = re.match(
-                pattern,
-                normalized,
-            )
-
+            match = re.match(pattern, normalized)
             if match:
-                target = match.group(1).strip()
-                target = self._normalize_process_name(target)
-
+                target = self._normalize_process_name(match.group(1).strip())
                 return {
                     "tool": "process_manager",
                     "action": "is_running",
                     "target": target,
                     "result": self.process_manager.is_running(target),
                 }
-
-        # --------------------------------------------------
-        # CLOSE APPLICATION
-        # --------------------------------------------------
 
         close_patterns = [
             r"^(?:fecha|fechar) (?:o |a )?(.+)$",
@@ -202,25 +212,27 @@ class ToolRouter:
         ]
 
         for pattern in close_patterns:
-            match = re.match(
-                pattern,
-                normalized,
-            )
-
+            match = re.match(pattern, normalized)
             if match:
-                target = match.group(1).strip()
-                target = self._normalize_process_name(target)
-
+                target = self._normalize_process_name(match.group(1).strip())
+                state_result = self._preflight(
+                    "process_manager",
+                    "close",
+                    {"target": target},
+                )
+                if state_result is not None:
+                    return {
+                        "tool": "process_manager",
+                        "action": "close",
+                        "target": target,
+                        "result": state_result,
+                    }
                 return {
                     "tool": "process_manager",
                     "action": "close_request",
                     "target": target,
                     "requires_confirmation": True,
                 }
-
-        # --------------------------------------------------
-        # OPEN APPLICATION / LOCATION
-        # --------------------------------------------------
 
         open_patterns = [
             r"^(?:abre|abrir) (?:o |a |os |as )?(.+)$",
@@ -233,24 +245,27 @@ class ToolRouter:
         ]
 
         for pattern in open_patterns:
-            match = re.match(
-                pattern,
-                normalized,
-            )
-
+            match = re.match(pattern, normalized)
             if match:
                 target = match.group(1).strip()
-
+                state_result = self._preflight(
+                    "app_launcher",
+                    "open",
+                    {"target": target},
+                )
+                if state_result is not None:
+                    return {
+                        "tool": "app_launcher",
+                        "action": "open",
+                        "target": target,
+                        "result": state_result,
+                    }
                 return {
                     "tool": "app_launcher",
                     "action": "open",
                     "target": target,
                     "result": self.app_launcher.run(target),
                 }
-
-        # --------------------------------------------------
-        # DISK INFO
-        # --------------------------------------------------
 
         disk_keywords = [
             "quanto espaco tenho",
@@ -262,19 +277,12 @@ class ToolRouter:
             "quanto disco tenho",
         ]
 
-        if any(
-            keyword in normalized
-            for keyword in disk_keywords
-        ):
+        if any(keyword in normalized for keyword in disk_keywords):
             return {
                 "tool": "disk_info",
                 "action": "info",
                 "result": self.disk_info.run(),
             }
-
-        # --------------------------------------------------
-        # SYSTEM INFO
-        # --------------------------------------------------
 
         system_keywords = [
             "que sistema operativo",
@@ -288,19 +296,12 @@ class ToolRouter:
             "que cpu tenho",
         ]
 
-        if any(
-            keyword in normalized
-            for keyword in system_keywords
-        ):
+        if any(keyword in normalized for keyword in system_keywords):
             return {
                 "tool": "system_info",
                 "action": "info",
                 "result": self.system_info.run(),
             }
-
-        # --------------------------------------------------
-        # CREATE FOLDER
-        # --------------------------------------------------
 
         folder_patterns = [
             r"^(?:cria|criar) uma pasta chamada (.+)$",
@@ -310,29 +311,25 @@ class ToolRouter:
         ]
 
         for pattern in folder_patterns:
-            match = re.match(
-                pattern,
-                normalized,
-            )
-
+            match = re.match(pattern, normalized)
             if match:
                 folder_name = match.group(1).strip().strip("\"'")
-
-                desktop = Path.home() / "Desktop"
-                target = desktop / folder_name
-
+                target = Path.home() / "Desktop" / folder_name
+                state_result = self._preflight(
+                    "file_manager",
+                    "create_folder",
+                    {"path": str(target)},
+                )
                 return {
                     "tool": "file_manager",
                     "action": "create_folder",
                     "target": str(target),
-                    "result": self.file_manager.create_folder(
-                        str(target)
+                    "result": (
+                        state_result
+                        if state_result is not None
+                        else self.file_manager.create_folder(str(target))
                     ),
                 }
-
-        # --------------------------------------------------
-        # CREATE FOLDER WITH EXPLICIT DESKTOP LANGUAGE
-        # --------------------------------------------------
 
         desktop_folder_patterns = [
             r"^cria uma pasta no ambiente de trabalho chamada (.+)$",
@@ -342,34 +339,27 @@ class ToolRouter:
         ]
 
         for pattern in desktop_folder_patterns:
-            match = re.match(
-                pattern,
-                normalized,
-            )
-
+            match = re.match(pattern, normalized)
             if match:
                 folder_name = match.group(1).strip().strip("\"'")
-
-                target = (
-                    Path.home()
-                    / "Desktop"
-                    / folder_name
+                target = Path.home() / "Desktop" / folder_name
+                state_result = self._preflight(
+                    "file_manager",
+                    "create_folder",
+                    {"path": str(target)},
                 )
-
                 return {
                     "tool": "file_manager",
                     "action": "create_folder",
                     "target": str(target),
-                    "result": self.file_manager.create_folder(
-                        str(target)
+                    "result": (
+                        state_result
+                        if state_result is not None
+                        else self.file_manager.create_folder(str(target))
                     ),
                 }
 
         return None
-
-    # --------------------------------------------------
-    # CONFIRMED ACTIONS
-    # --------------------------------------------------
 
     def execute_confirmed_action(
         self,
@@ -377,11 +367,14 @@ class ToolRouter:
         action: str,
         target: str,
     ) -> dict:
-
-        if (
-            tool == "process_manager"
-            and action == "close"
-        ):
+        if tool == "process_manager" and action == "close":
+            state_result = self._preflight(
+                "process_manager",
+                "close",
+                {"target": target},
+            )
+            if state_result is not None:
+                return state_result
             return self.process_manager.close(target)
 
         return {
