@@ -144,6 +144,71 @@ class IntelligentPlanner:
         """Forget only ephemeral agent-planning context."""
         self._recent_plans.clear()
 
+    def remember_plan(self, plan: Plan) -> None:
+        """Record any already-validated plan as short-lived context."""
+        self._remember_plan(plan)
+
+    def remember_routed_action(
+        self,
+        request: str,
+        routed: dict,
+    ) -> None:
+        """Capture a deterministic ToolRouter action for contextual follow-ups.
+
+        Only known allowlisted signatures are recorded. Tool outputs are never
+        stored here; context contains only the user's request and action shape.
+        """
+
+        tool = routed.get("tool")
+        action = routed.get("action")
+        target = routed.get("target")
+
+        if action == "close_request":
+            action = "close"
+
+        if (tool, action) not in self.ALLOWED_ACTIONS:
+            return
+
+        if (tool, action) in {
+            ("disk_info", "info"),
+            ("system_info", "info"),
+        }:
+            arguments: dict[str, Any] = {}
+        elif tool == "process_manager" and action == "list":
+            arguments = {"limit": 10}
+        elif tool == "file_manager" and action == "create_folder":
+            if not isinstance(target, str) or not target.strip():
+                return
+            arguments = {"path": target}
+        else:
+            if not isinstance(target, str) or not target.strip():
+                return
+            arguments = {"target": target}
+
+        if not self._validate_arguments(
+            tool,
+            action,
+            arguments,
+        ):
+            return
+
+        self._remember_plan(
+            Plan(
+                request=request,
+                description="Ação resolvida pelo Tool Router.",
+                actions=[
+                    PlanAction(
+                        tool=tool,
+                        action=action,
+                        arguments=arguments,
+                        description=(
+                            f"{tool}.{action}"
+                        ),
+                    )
+                ],
+            )
+        )
+
     def should_attempt(self, request: str) -> bool:
         """Cheaply decide whether the local model should act as a planner.
 
