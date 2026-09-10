@@ -11,6 +11,17 @@ from aura.tools.disk_info import DiskInfoTool
 from aura.tools.process_manager import ProcessManagerTool
 
 
+class StateResult(dict):
+    """Dict-compatible state result with a human-readable string form."""
+
+    def __init__(self, payload: dict[str, Any], message: str) -> None:
+        super().__init__(payload)
+        self.message = message
+
+    def __str__(self) -> str:
+        return self.message
+
+
 @dataclass(frozen=True)
 class PreflightDecision:
     """Read-only decision made immediately before an action executes."""
@@ -96,10 +107,6 @@ class StateObserver:
         self.process_manager = process_manager or ProcessManagerTool()
         self.disk_info = disk_info or DiskInfoTool()
 
-    # --------------------------------------------------
-    # REQUEST SNAPSHOT
-    # --------------------------------------------------
-
     def observe_request(self, request: str) -> str:
         """Return compact read-only facts relevant to one user request."""
 
@@ -134,10 +141,6 @@ class StateObserver:
 
         return "\n".join(f"- {item}" for item in observations)
 
-    # --------------------------------------------------
-    # PRE-FLIGHT STATE CHECKS
-    # --------------------------------------------------
-
     def preflight(
         self,
         tool: str,
@@ -153,22 +156,24 @@ class StateObserver:
 
             process_name = self.resolve_process_target(target)
             if process_name is None:
-                # Known folders/locations can legitimately be opened more than
-                # once, so they are deliberately not deduplicated.
                 return None
 
             state = self.process_manager.is_running(process_name)
             if state.get("sucesso") and state.get("em_execucao"):
+                message = f"{target} já estava em execução — não voltei a abrir."
                 return PreflightDecision(
                     skip=True,
-                    reason=f"{target} já está em execução.",
-                    result={
-                        "sucesso": True,
-                        "acao": "estado_satisfeito",
-                        "estado": "already_running",
-                        "target": target,
-                        "processo": process_name,
-                    },
+                    reason=message,
+                    result=StateResult(
+                        {
+                            "sucesso": True,
+                            "acao": "estado_satisfeito",
+                            "estado": "already_running",
+                            "target": target,
+                            "processo": process_name,
+                        },
+                        message,
+                    ),
                 )
             return None
 
@@ -180,16 +185,23 @@ class StateObserver:
             process_name = self.resolve_process_target(target) or target.strip()
             state = self.process_manager.is_running(process_name)
             if state.get("sucesso") and not state.get("em_execucao"):
+                message = (
+                    f"{target} já não estava em execução — "
+                    "não havia nada para fechar."
+                )
                 return PreflightDecision(
                     skip=True,
-                    reason=f"{target} já não está em execução.",
-                    result={
-                        "sucesso": True,
-                        "acao": "estado_satisfeito",
-                        "estado": "already_closed",
-                        "target": target,
-                        "processo": process_name,
-                    },
+                    reason=message,
+                    result=StateResult(
+                        {
+                            "sucesso": True,
+                            "acao": "estado_satisfeito",
+                            "estado": "already_closed",
+                            "target": target,
+                            "processo": process_name,
+                        },
+                        message,
+                    ),
                 )
             return None
 
@@ -201,26 +213,24 @@ class StateObserver:
             target = Path(path.strip())
             try:
                 if target.is_dir():
+                    message = f"A pasta {target} já existia — não criei outra."
                     return PreflightDecision(
                         skip=True,
-                        reason=f"A pasta {target} já existe.",
-                        result={
-                            "sucesso": True,
-                            "acao": "estado_satisfeito",
-                            "estado": "folder_exists",
-                            "path": str(target),
-                        },
+                        reason=message,
+                        result=StateResult(
+                            {
+                                "sucesso": True,
+                                "acao": "estado_satisfeito",
+                                "estado": "folder_exists",
+                                "path": str(target),
+                            },
+                            message,
+                        ),
                     )
             except OSError:
-                # If observation itself fails, execution remains the source of
-                # truth and will report the real error.
                 return None
 
         return None
-
-    # --------------------------------------------------
-    # TARGET NORMALIZATION
-    # --------------------------------------------------
 
     @classmethod
     def resolve_process_target(cls, target: str) -> str | None:
@@ -234,8 +244,6 @@ class StateObserver:
         if normalized in cls.PROCESS_ALIASES:
             return cls.PROCESS_ALIASES[normalized]
 
-        # Match descriptive forms such as "Adobe After Effects 2026" while
-        # preferring the longest known alias to avoid overly broad matches.
         for alias in sorted(
             cls.PROCESS_ALIASES,
             key=len,
@@ -247,8 +255,6 @@ class StateObserver:
             ):
                 return cls.PROCESS_ALIASES[alias]
 
-        # Unknown discovered apps cannot be mapped reliably to an executable
-        # name. Do not guess: allow AppLauncher to handle them normally.
         return None
 
     @classmethod
