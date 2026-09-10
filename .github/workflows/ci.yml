@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   planner:
-    name: Intelligent Agent Runtime v1.4
+    name: Intelligent Agent Runtime v1.4 + App
     runs-on: ubuntu-latest
 
     steps:
@@ -27,10 +27,14 @@ jobs:
       - name: Install lightweight test dependencies
         run: python -m pip install --upgrade pytest psutil
 
-      - name: Compile Alpha 2 agent runtime
+      - name: Compile Alpha 2 agent and app runtime
         run: >-
           python -m py_compile
           aura.py
+          aura_web.py
+          aura_desktop.py
+          aura/web/agent.py
+          aura/web/server.py
           aura/tools/system_state.py
           aura/agent/action_executor.py
           aura/agent/intelligent_planner.py
@@ -40,8 +44,9 @@ jobs:
           aura/agent/planner.py
           aura/agent/plan_executor.py
           aura/agent/permission_manager.py
+          scripts/build_release.py
 
-      - name: Run Alpha 2 agent tests
+      - name: Run Alpha 2 agent and app tests
         run: >-
           python -m pytest -q
           tests/test_intelligent_planner.py
@@ -49,3 +54,5 @@ jobs:
           tests/test_recovery_planner.py
           tests/test_state_observer.py
           tests/test_system_state.py
+          tests/test_web_agent.py
+          tests/test_web.py
