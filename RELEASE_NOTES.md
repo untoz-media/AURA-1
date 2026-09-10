@@ -1,26 +1,36 @@
-# AURA-1 Alpha 0.1 — Brand Identity v1
+# AURA-1 Alpha 2 — Intelligent Agent App
 
-This update brings the public AURA-1 interface into the official Brand Identity v1 while preserving the local assistant and its existing features.
+This Alpha 2 development line brings the AURA Intelligent Agent Runtime into the actual local application and adds a native Windows desktop host.
 
-## Included
+## App integration
 
-- Local browser and terminal interfaces
-- English as the primary language, with Portuguese support
-- Conversation and persistent memory
-- Calculator, date/time, system information and project file discovery tools
-- Windows installer and launcher
-- Localhost-only server with request and content protections
-- Official AURA Core identity with restrained Idle, Thinking and Generating motion
-- Sora typography and the AURA Blue, Violet, Deep Space, Slate and Light palette
-- Responsive, keyboard-accessible interface with reduced-motion support
+- Native AURA desktop window powered by pywebview
+- Localhost-only application service; no external network binding
+- Agent Runtime v1.4 available from the app instead of direct-chat-only behaviour
+- Deterministic Planner and Tool Router fast paths
+- Intelligent Planner for bounded multi-step requests
+- State-aware execution and redundant-action preflight
+- Result-aware single-pass recovery
+- One-time confirmation UI for protected actions
+- CPU, RAM, system-pressure, battery and foreground-process panel
+- App launching, App Discovery, process checks, safe folder creation and existing memory features
 
-## Install on Windows
+## Safety and privacy
 
-1. Download and extract `AURA-1-0.1.0-alpha.2-windows.zip`.
-2. Run `instalar_aura_windows.bat`.
-3. Run `iniciar_aura_web.bat`.
-4. Wait for the browser status to show **Ready**.
+Protected actions are not approved by JavaScript or by the model. The backend issues a short-lived confirmation token and the user must explicitly select **Allow once** before execution continues. Shell, PowerShell and CMD execution remain outside the planner allowlist.
 
-The upstream Qwen3-4B-Instruct-2507 weights are not bundled. They are downloaded
-on first use and require several GB of disk space. This is an experimental Alpha;
-see `MODEL_CARD.md` for scope and known limitations.
+The system-state panel is read-only. It does not collect window titles, clipboard contents, process command lines, environment variables, usernames or file contents.
+
+## Windows downloads
+
+Tagged GitHub releases are prepared to publish:
+
+- `AURA-1-0.1.0-alpha.2-windows-source.zip`
+- `AURA-1-0.1.0-alpha.2-windows-x64.zip`
+- SHA-256 checksum files for both packages
+
+The desktop ZIP contains `AURA-1.exe` and its runtime folder. Extract the complete folder and launch `AURA-1.exe`.
+
+The upstream `Qwen/Qwen3-4B-Instruct-2507` model weights are **not** bundled in the release. The first startup may download the configured model and requires several gigabytes of disk space.
+
+This remains experimental Alpha software. Do not rely on it for critical, safety-sensitive or irreversible tasks.
