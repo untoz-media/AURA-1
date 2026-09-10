@@ -5,6 +5,7 @@ import sys
 from aura.agent.intelligent_planner import IntelligentPlanner
 from aura.agent.plan_executor import PlanExecutor
 from aura.agent.planner import Planner
+from aura.agent.recovery_planner import RecoveryPlanner
 from aura.agent.tool_router import ToolRouter
 from aura.core.assistant import AuraAssistant
 from aura.profiles import PROFILE_LABELS
@@ -209,7 +210,7 @@ def show_help(ui: AuraConsole) -> None:
 
 
 def render_plan_results(results, ui: AuraConsole) -> None:
-    """Render completed steps and non-critical warnings from one plan."""
+    """Render completed steps and warnings from one plan pass."""
     for action_result in results:
         if action_result.success:
             if action_result.result:
@@ -227,28 +228,25 @@ def render_plan_results(results, ui: AuraConsole) -> None:
         )
 
 
-def execute_agent_plan(
+def _execute_plan_once(
     plan,
     plan_executor: PlanExecutor,
     ui: AuraConsole,
-) -> None:
-    # Revalidate every plan immediately before execution. This applies to
-    # deterministic plans and plans proposed by the local model.
+):
+    """Execute one plan pass, including protected-action confirmations."""
+
     valid, reason = Planner().validate(plan)
     if not valid:
         ui.error(f"Plano inválido: {reason}")
-        return
+        return None, False
 
     ui.plan(plan.description, plan.actions)
     result = plan_executor.execute(plan.actions)
 
-    # A plan can cross several destructive-action boundaries. Each protected
-    # action requires its own explicit confirmation, while earlier results are
-    # preserved and never re-executed.
     while result.status == "confirmation_required":
         if result.pending_action is None or result.pending_index is None:
             ui.error("O plano pediu confirmação sem indicar a ação pendente.")
-            return
+            return None, False
 
         action = result.pending_action
         description = action.description or f"{action.tool}.{action.action}"
@@ -258,9 +256,7 @@ def execute_agent_plan(
         )
 
         if not confirmed:
-            render_plan_results(result.results, ui)
-            ui.warning("Plano cancelado antes da ação protegida.")
-            return
+            return result, True
 
         result = plan_executor.execute_confirmed(
             plan.actions,
@@ -268,17 +264,102 @@ def execute_agent_plan(
             previous_results=result.results,
         )
 
-    if result.status in {"completed", "completed_with_warnings"}:
-        render_plan_results(result.results, ui)
-        ui.plan_complete(result.completed, result.total)
-        if result.status == "completed_with_warnings":
-            ui.warning(
-                "Plano concluído com avisos: uma ou mais verificações "
-                "de leitura falharam, mas as ações independentes continuaram."
-            )
+    return result, False
+
+
+def execute_agent_plan(
+    plan,
+    plan_executor: PlanExecutor,
+    ui: AuraConsole,
+    recovery_planner: RecoveryPlanner | None = None,
+) -> None:
+    """Execute a plan and permit at most one result-aware recovery pass."""
+
+    result, cancelled = _execute_plan_once(
+        plan,
+        plan_executor,
+        ui,
+    )
+    if result is None:
         return
 
     render_plan_results(result.results, ui)
+
+    if cancelled:
+        ui.warning("Plano cancelado antes da ação protegida.")
+        return
+
+    if result.status == "completed":
+        ui.plan_complete(result.completed, result.total)
+        return
+
+    # v1.3: one bounded recovery pass. We deliberately never recurse into
+    # execute_agent_plan(), so a failed recovery cannot create another recovery.
+    if (
+        recovery_planner is not None
+        and recovery_planner.should_recover(plan, result)
+    ):
+        ui.warning(
+            "Uma ou mais etapas falharam. "
+            "AURA vai analisar uma recuperação segura."
+        )
+
+        try:
+            with ui.loading("AURA está a analisar o resultado..."):
+                recovery_plan = recovery_planner.create_recovery_plan(
+                    plan,
+                    result,
+                )
+        except Exception as exc:
+            ui.warning(f"Recovery Planner indisponível: {exc}")
+            recovery_plan = None
+
+        if recovery_plan is not None:
+            ui.info("AURA encontrou uma tentativa de recuperação segura.")
+            recovery_result, recovery_cancelled = _execute_plan_once(
+                recovery_plan,
+                plan_executor,
+                ui,
+            )
+
+            if recovery_result is None:
+                return
+
+            render_plan_results(recovery_result.results, ui)
+
+            if recovery_cancelled:
+                ui.warning("Recuperação cancelada antes de uma ação protegida.")
+                return
+
+            if recovery_result.status == "completed":
+                ui.success("Recuperação concluída. O AURA não precisou de novo ciclo.")
+                return
+
+            if recovery_result.status == "blocked":
+                ui.blocked(
+                    "A tentativa de recuperação foi bloqueada pelo sistema "
+                    "de permissões."
+                )
+                return
+
+            ui.warning(
+                "A tentativa de recuperação não resolveu tudo. "
+                "Por segurança, o AURA não vai tentar novamente automaticamente."
+            )
+            return
+
+        ui.warning(
+            "Não encontrei uma recuperação automática segura. "
+            "O AURA não vai inventar uma alternativa."
+        )
+
+    if result.status == "completed_with_warnings":
+        ui.plan_complete(result.completed, result.total)
+        ui.warning(
+            "Plano concluído com avisos: algumas etapas falharam, "
+            "mas as ações independentes continuaram."
+        )
+        return
 
     if result.status == "blocked":
         ui.blocked(
@@ -348,9 +429,10 @@ def main() -> None:
         return
 
     intelligent_planner = IntelligentPlanner(assistant)
+    recovery_planner = RecoveryPlanner(intelligent_planner)
 
     ui.success("AURA-1 está operacional.")
-    ui.info("Alpha 2 Development • Intelligent Agent Runtime v1.1 Online")
+    ui.info("Alpha 2 Development • Intelligent Agent Runtime v1.3 Online")
 
     while True:
         try:
@@ -383,7 +465,9 @@ def main() -> None:
                 "Agent Runtime: online\n"
                 "Tool Router v2: online\n"
                 "Deterministic Planner: online\n"
-                "Intelligent Planner v1.1: online\n"
+                "Intelligent Planner v1.3: online\n"
+                "State Observer: online\n"
+                "Result-aware Recovery: online\n"
                 "Permission Manager: online"
             )
             continue
@@ -505,8 +589,10 @@ def main() -> None:
                 "• Process Manager\n"
                 "• Tool Router v2\n"
                 "• Deterministic Planner\n"
-                "• Intelligent Planner v1.1\n"
+                "• Intelligent Planner v1.3\n"
+                "• State Observer\n"
                 "• Contextual Follow-ups\n"
+                "• Result-aware Recovery\n"
                 "• Resilient Plan Executor\n"
                 "• Action Executor\n"
                 "• Permission Manager"
@@ -522,7 +608,12 @@ def main() -> None:
 
         if plan is not None:
             intelligent_planner.remember_plan(plan)
-            execute_agent_plan(plan, plan_executor, ui)
+            execute_agent_plan(
+                plan,
+                plan_executor,
+                ui,
+                recovery_planner,
+            )
             continue
 
         # 2. Fast deterministic single-tool requests.
@@ -544,13 +635,16 @@ def main() -> None:
                 with ui.loading("AURA está a criar um plano..."):
                     plan = intelligent_planner.create_plan(message)
             except Exception as exc:
-                # Planner failure must not take the assistant down. Fall back
-                # to ordinary conversation so AURA remains usable offline.
                 ui.warning(f"Intelligent Planner indisponível: {exc}")
                 plan = None
 
             if plan is not None:
-                execute_agent_plan(plan, plan_executor, ui)
+                execute_agent_plan(
+                    plan,
+                    plan_executor,
+                    ui,
+                    recovery_planner,
+                )
                 continue
 
         # 4. Normal local conversation.
