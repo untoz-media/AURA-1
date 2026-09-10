@@ -60,7 +60,13 @@ class RecoveryPlanner:
             return False
 
         failures = self._failures(original_plan, result)
-        return any(
+        if not failures:
+            return False
+
+        # Fail closed: a destructive or otherwise unsupported failure blocks
+        # automatic recovery for the whole run. The user keeps control of the
+        # next step instead of the model trying to work around a critical error.
+        return all(
             (failure.tool, failure.action) in self.RECOVERABLE_ACTIONS
             for failure in failures
         )
