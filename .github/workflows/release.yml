@@ -10,7 +10,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    name: Build Windows desktop release
+    runs-on: windows-latest
+
     steps:
       - name: Check out the tagged version
         uses: actions/checkout@v4
@@ -20,15 +22,30 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build the source package
+      - name: Build source package
         run: python scripts/build_release.py
 
-      - name: Create the GitHub pre-release
+      - name: Install desktop runtime and packager
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-desktop.txt
+          python -m pip install pyinstaller
+
+      - name: Build native Windows application
+        shell: pwsh
+        run: ./scripts/build_desktop.ps1
+
+      - name: Verify release assets
+        shell: pwsh
+        run: |
+          $zips = Get-ChildItem dist -Filter *.zip
+          if ($zips.Count -lt 2) { throw "Expected source and desktop ZIP assets." }
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Create GitHub pre-release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          dist/*.zip dist/*.sha256
-          --title "AURA-1 $GITHUB_REF_NAME"
-          --notes-file RELEASE_NOTES.md
-          --prerelease
+        run: |
+          $assets = Get-ChildItem dist -File | Where-Object { $_.Name -match '\.(zip|sha256)$' } | ForEach-Object { $_.FullName }
+          gh release create $env:GITHUB_REF_NAME $assets --title "AURA-1 $env:GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --prerelease
