@@ -8,6 +8,15 @@ $DistRoot = Join-Path $Root "dist"
 $BuildRoot = Join-Path $Root "build"
 $DesktopRoot = Join-Path $BuildRoot "desktop"
 $WorkRoot = Join-Path $BuildRoot "pyinstaller"
+$StaticRoot = Join-Path $Root "aura\web\static"
+$AssetsRoot = Join-Path $Root "assets"
+
+if (-not (Test-Path $StaticRoot)) {
+    throw "AURA web static assets were not found at $StaticRoot"
+}
+if (-not (Test-Path $AssetsRoot)) {
+    throw "AURA brand assets were not found at $AssetsRoot"
+}
 
 New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 Remove-Item -Recurse -Force $DesktopRoot -ErrorAction SilentlyContinue
@@ -22,8 +31,8 @@ python -m PyInstaller `
   --distpath $DesktopRoot `
   --workpath $WorkRoot `
   --specpath $BuildRoot `
-  --add-data "aura/web/static;aura/web/static" `
-  --add-data "assets;assets" `
+  --add-data "${StaticRoot};aura/web/static" `
+  --add-data "${AssetsRoot};assets" `
   --collect-all webview `
   --collect-all bitsandbytes `
   --hidden-import aura.core.assistant `
@@ -31,7 +40,8 @@ python -m PyInstaller `
   aura_desktop.py
 
 $Bundle = Join-Path $DesktopRoot "AURA-1"
-if (-not (Test-Path (Join-Path $Bundle "AURA-1.exe"))) {
+$Executable = Join-Path $Bundle "AURA-1.exe"
+if (-not (Test-Path $Executable)) {
     throw "PyInstaller did not produce AURA-1.exe"
 }
 
@@ -44,3 +54,4 @@ $Checksum = "$Zip.sha256"
 "$Hash  $([System.IO.Path]::GetFileName($Zip))" | Set-Content -Encoding ascii $Checksum
 
 Write-Host "Built $Zip"
+Write-Host "Executable: $Executable"
