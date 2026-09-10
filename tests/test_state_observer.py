@@ -108,6 +108,7 @@ def test_preflight_skips_redundant_app_open():
 
     assert decision is not None
     assert decision.skip is True
+    assert isinstance(decision.result, dict)
     assert decision.result["estado"] == "already_running"
     assert decision.result["processo"] == "obs64"
     assert str(decision.result) == (
