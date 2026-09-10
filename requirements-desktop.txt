@@ -1,0 +1,3 @@
+# Native desktop host for the AURA local application.
+-r requirements-runtime.txt
+pywebview>=5.4,<7
