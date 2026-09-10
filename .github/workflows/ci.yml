@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   planner:
-    name: Intelligent Agent Runtime
+    name: Intelligent Agent Runtime v1.3
     runs-on: ubuntu-latest
 
     steps:
