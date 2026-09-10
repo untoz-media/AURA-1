@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from aura.agent.permission_manager import PermissionManager
+from aura.agent.state_observer import StateObserver
 from aura.tools.app_launcher import AppLauncherTool
 from aura.tools.disk_info import DiskInfoTool
 from aura.tools.file_manager import FileManagerTool
@@ -23,15 +24,18 @@ class ActionResult:
 
 
 class ActionExecutor:
-    """
-    Executes structured AURA actions.
+    """Execute one validated AURA action through permissions and state checks.
 
-    Every action must pass through PermissionManager
-    before any tool is executed.
+    StateObserver is read-only. It may skip an action only when the requested
+    state is already satisfied; it never grants permissions or executes tools.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        state_observer: StateObserver | None = None,
+    ) -> None:
         self.permissions = PermissionManager()
+        self.state_observer = state_observer or StateObserver()
 
         self.app_launcher = AppLauncherTool()
         self.disk_info = DiskInfoTool()
@@ -46,11 +50,10 @@ class ActionExecutor:
         arguments: dict[str, Any] | None = None,
         confirmed: bool = False,
     ) -> ActionResult:
-
         arguments = arguments or {}
 
         # --------------------------------------------------
-        # PERMISSION CHECK
+        # PERMISSION ALLOWLIST
         # --------------------------------------------------
 
         decision = self.permissions.check(
@@ -67,10 +70,39 @@ class ActionExecutor:
                 message=decision.reason,
             )
 
-        if (
-            decision.requires_confirmation
-            and not confirmed
-        ):
+        # --------------------------------------------------
+        # READ-ONLY STATE PREFLIGHT
+        # --------------------------------------------------
+        # This happens before a destructive confirmation prompt so AURA does
+        # not ask permission to close something that is already closed. A
+        # blocked action never reaches this point.
+
+        try:
+            preflight = self.state_observer.preflight(
+                tool,
+                action,
+                arguments,
+            )
+        except Exception:
+            # Observation must never make the runtime unusable. If it fails,
+            # the normal permission/execution path remains the source of truth.
+            preflight = None
+
+        if preflight is not None and preflight.skip:
+            return ActionResult(
+                success=True,
+                status="skipped",
+                tool=tool,
+                action=action,
+                result=preflight.result,
+                message=preflight.reason,
+            )
+
+        # --------------------------------------------------
+        # CONFIRMATION
+        # --------------------------------------------------
+
+        if decision.requires_confirmation and not confirmed:
             return ActionResult(
                 success=False,
                 status="confirmation_required",
@@ -90,7 +122,6 @@ class ActionExecutor:
                 action,
                 arguments,
             )
-
         except Exception as exc:
             return ActionResult(
                 success=False,
@@ -100,10 +131,7 @@ class ActionExecutor:
                 message=str(exc),
             )
 
-        success = result.get(
-            "sucesso",
-            True,
-        )
+        success = result.get("sucesso", True)
 
         if not success:
             return ActionResult(
@@ -136,147 +164,54 @@ class ActionExecutor:
         action: str,
         arguments: dict[str, Any],
     ) -> dict:
-
-        # SYSTEM INFO
-
-        if (
-            tool == "system_info"
-            and action == "info"
-        ):
+        if tool == "system_info" and action == "info":
             return self.system_info.run()
 
-        # DISK INFO
+        if tool == "disk_info" and action == "info":
+            path = arguments.get("path", "C:\\")
+            return self.disk_info.run(path)
 
-        if (
-            tool == "disk_info"
-            and action == "info"
-        ):
-            path = arguments.get(
-                "path",
-                "C:\\",
-            )
-
-            return self.disk_info.run(
-                path
-            )
-
-        # APP LAUNCHER
-
-        if (
-            tool == "app_launcher"
-            and action == "open"
-        ):
-            target = arguments.get(
-                "target"
-            )
-
+        if tool == "app_launcher" and action == "open":
+            target = arguments.get("target")
             if not target:
                 return {
                     "sucesso": False,
-                    "erro": (
-                        "A aplicação a abrir "
-                        "não foi indicada."
-                    ),
+                    "erro": "A aplicação a abrir não foi indicada.",
                 }
+            return self.app_launcher.run(target)
 
-            return self.app_launcher.run(
-                target
-            )
+        if tool == "process_manager" and action == "list":
+            limit = arguments.get("limit", 10)
+            return self.process_manager.list_processes(limit)
 
-        # PROCESS LIST
-
-        if (
-            tool == "process_manager"
-            and action == "list"
-        ):
-            limit = arguments.get(
-                "limit",
-                10,
-            )
-
-            return (
-                self.process_manager
-                .list_processes(limit)
-            )
-
-        # PROCESS RUNNING
-
-        if (
-            tool == "process_manager"
-            and action == "is_running"
-        ):
-            target = arguments.get(
-                "target"
-            )
-
+        if tool == "process_manager" and action == "is_running":
+            target = arguments.get("target")
             if not target:
                 return {
                     "sucesso": False,
-                    "erro": (
-                        "O processo não foi indicado."
-                    ),
+                    "erro": "O processo não foi indicado.",
                 }
+            return self.process_manager.is_running(target)
 
-            return (
-                self.process_manager
-                .is_running(target)
-            )
-
-        # CLOSE PROCESS
-
-        if (
-            tool == "process_manager"
-            and action == "close"
-        ):
-            target = arguments.get(
-                "target"
-            )
-
+        if tool == "process_manager" and action == "close":
+            target = arguments.get("target")
             if not target:
                 return {
                     "sucesso": False,
-                    "erro": (
-                        "O processo não foi indicado."
-                    ),
+                    "erro": "O processo não foi indicado.",
                 }
+            return self.process_manager.close(target)
 
-            return (
-                self.process_manager
-                .close(target)
-            )
-
-        # CREATE FOLDER
-
-        if (
-            tool == "file_manager"
-            and action == "create_folder"
-        ):
-            path = arguments.get(
-                "path"
-            )
-
+        if tool == "file_manager" and action == "create_folder":
+            path = arguments.get("path")
             if not path:
                 return {
                     "sucesso": False,
-                    "erro": (
-                        "O caminho da pasta "
-                        "não foi indicado."
-                    ),
+                    "erro": "O caminho da pasta não foi indicado.",
                 }
-
-            return (
-                self.file_manager
-                .create_folder(path)
-            )
-
-        # --------------------------------------------------
-        # UNKNOWN ACTION
-        # --------------------------------------------------
+            return self.file_manager.create_folder(path)
 
         return {
             "sucesso": False,
-            "erro": (
-                f"Ação desconhecida: "
-                f"{tool}.{action}"
-            ),
+            "erro": f"Ação desconhecida: {tool}.{action}",
         }
