@@ -34,6 +34,7 @@ jobs:
           aura/agent/action_executor.py
           aura/agent/intelligent_planner.py
           aura/agent/state_observer.py
+          aura/agent/tool_router.py
           aura/agent/planner.py
           aura/agent/plan_executor.py
           aura/agent/permission_manager.py
