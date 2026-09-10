@@ -9,6 +9,7 @@ from typing import Any
 
 from aura.tools.disk_info import DiskInfoTool
 from aura.tools.process_manager import ProcessManagerTool
+from aura.tools.system_state import SystemStateTool
 
 
 class StateResult(dict):
@@ -99,13 +100,38 @@ class StateObserver:
         "espaco",
     }
 
+    PERFORMANCE_CONTEXT_HINTS = {
+        "lento",
+        "lenta",
+        "slow",
+        "lag",
+        "cpu",
+        "ram",
+        "memoria",
+        "desempenho",
+        "performance",
+        "bateria",
+        "battery",
+        "live",
+        "stream",
+        "streaming",
+        "editar",
+        "edicao",
+        "render",
+        "gravar",
+        "gaming",
+        "jogar",
+    }
+
     def __init__(
         self,
         process_manager: ProcessManagerTool | None = None,
         disk_info: DiskInfoTool | None = None,
+        system_state: SystemStateTool | None = None,
     ) -> None:
         self.process_manager = process_manager or ProcessManagerTool()
         self.disk_info = disk_info or DiskInfoTool()
+        self.system_state = system_state or SystemStateTool()
 
     def observe_request(self, request: str) -> str:
         """Return compact read-only facts relevant to one user request."""
@@ -131,6 +157,42 @@ class StateObserver:
                     f"{free_gb} GB free, {disk.get('percentagem_usada')}% used, "
                     f"{self._disk_health(free_gb)}"
                 )
+
+        if any(hint in text for hint in self.PERFORMANCE_CONTEXT_HINTS):
+            state = self.system_state.snapshot()
+            if state.get("sucesso"):
+                ram = state.get("ram", {})
+                observations.append(
+                    "performance: "
+                    f"CPU {state.get('cpu_percent', '?')}%, "
+                    f"RAM {ram.get('percentagem_usada', '?')}% used, "
+                    f"{ram.get('disponivel_gb', '?')} GB available, "
+                    f"pressure={state.get('pressao', 'unknown')}"
+                )
+
+                foreground = state.get("foreground_app")
+                if foreground:
+                    observations.append(
+                        f"foreground application: {foreground!r}"
+                    )
+
+                battery = state.get("bateria")
+                if battery:
+                    observations.append(
+                        "battery: "
+                        f"{battery.get('percentagem', '?')}%, "
+                        f"plugged={bool(battery.get('ligado_corrente'))}"
+                    )
+
+                top_processes = state.get("processos_memoria") or []
+                if top_processes:
+                    largest = "; ".join(
+                        f"{item.get('nome', 'process')}={item.get('memoria_mb', '?')}MB"
+                        for item in top_processes[:3]
+                    )
+                    observations.append(
+                        f"largest memory consumers: {largest}"
+                    )
 
         if not observations:
             return "(no relevant state observed)"
