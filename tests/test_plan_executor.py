@@ -106,7 +106,7 @@ def test_failed_read_check_does_not_block_independent_action():
     assert plan_result.results[1].success is True
 
 
-def test_side_effect_failure_stops_plan_without_retrying():
+def test_failed_app_open_does_not_block_later_independent_app():
     executor = PlanExecutor()
     executor.executor = ScriptedExecutor(
         [
@@ -115,8 +115,14 @@ def test_side_effect_failure_stops_plan_without_retrying():
                 "open",
                 success=False,
                 status="error",
-                message="launcher failed",
-            )
+                message="OBS launcher failed",
+            ),
+            result(
+                "app_launcher",
+                "open",
+                success=True,
+                status="completed",
+            ),
         ]
     )
 
@@ -135,8 +141,45 @@ def test_side_effect_failure_stops_plan_without_retrying():
         ]
     )
 
-    assert plan_result.status == "error"
+    assert plan_result.status == "completed_with_warnings"
+    assert plan_result.completed == 1
+    assert len(plan_result.results) == 2
+    assert len(executor.executor.calls) == 2
+    assert executor.executor.calls[1]["arguments"] == {"target": "Brave"}
+
+
+def test_destructive_failure_still_stops_plan():
+    executor = PlanExecutor()
+    executor.executor = ScriptedExecutor(
+        [
+            result(
+                "process_manager",
+                "close",
+                success=False,
+                status="failed",
+                message="process could not be closed",
+            ),
+        ]
+    )
+
+    plan_result = executor.execute(
+        [
+            PlanAction(
+                tool="process_manager",
+                action="close",
+                arguments={"target": "notepad"},
+            ),
+            PlanAction(
+                tool="app_launcher",
+                action="open",
+                arguments={"target": "OBS"},
+            ),
+        ]
+    )
+
+    assert plan_result.status == "failed"
     assert plan_result.completed == 0
+    assert len(plan_result.results) == 1
     assert len(executor.executor.calls) == 1
 
 
