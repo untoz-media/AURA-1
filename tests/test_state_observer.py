@@ -110,6 +110,9 @@ def test_preflight_skips_redundant_app_open():
     assert decision.skip is True
     assert decision.result["estado"] == "already_running"
     assert decision.result["processo"] == "obs64"
+    assert str(decision.result) == (
+        "OBS Studio já estava em execução — não voltei a abrir."
+    )
 
 
 def test_preflight_close_already_closed_needs_no_action():
@@ -127,6 +130,7 @@ def test_preflight_close_already_closed_needs_no_action():
     assert decision is not None
     assert decision.skip is True
     assert decision.result["estado"] == "already_closed"
+    assert "não havia nada para fechar" in str(decision.result)
 
 
 def test_unknown_discovered_app_is_never_guessed():
@@ -160,6 +164,7 @@ def test_existing_folder_is_skipped(tmp_path):
     assert decision is not None
     assert decision.skip is True
     assert decision.result["estado"] == "folder_exists"
+    assert "já existia" in str(decision.result)
 
 
 def test_action_executor_skips_before_destructive_confirmation():
