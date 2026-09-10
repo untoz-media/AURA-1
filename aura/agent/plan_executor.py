@@ -33,9 +33,11 @@ class PlanResult:
 class PlanExecutor:
     """Execute a sequence of validated AURA actions.
 
-    Every action still passes through ActionExecutor and PermissionManager.
-    Read-only actions get one narrow retry after an execution error and may be
-    treated as non-critical so a useful multi-step plan can continue.
+    Read-only actions get one narrow retry after an execution error. Safe,
+    independent side-effect actions such as opening an app or creating a folder
+    may fail without preventing later independent steps from running; the
+    result-aware recovery layer can then inspect those failures afterwards.
+    Destructive close failures remain stop conditions.
     """
 
     MAX_ACTIONS = 20
@@ -47,6 +49,13 @@ class PlanExecutor:
         ("process_manager", "list"),
         ("process_manager", "is_running"),
     }
+
+    RECOVERABLE_SIDE_EFFECTS = {
+        ("app_launcher", "open"),
+        ("file_manager", "create_folder"),
+    }
+
+    CONTINUE_AFTER_FAILURE = READ_ONLY_ACTIONS | RECOVERABLE_SIDE_EFFECTS
 
     def __init__(self):
         self.executor = ActionExecutor()
@@ -89,8 +98,7 @@ class PlanExecutor:
         """Resume a plan after explicit confirmation.
 
         Only the first action of this resumed segment receives confirmed=True.
-        Results from earlier steps can be supplied so state is preserved across
-        one or more confirmation boundaries.
+        Results from earlier steps are preserved across confirmation boundaries.
         """
 
         if (
@@ -111,10 +119,6 @@ class PlanExecutor:
             previous_results=list(previous_results or []),
             confirm_first=True,
         )
-
-    # --------------------------------------------------
-    # INTERNAL EXECUTION
-    # --------------------------------------------------
 
     def _execute_from(
         self,
@@ -150,10 +154,7 @@ class PlanExecutor:
             if result.success:
                 continue
 
-            # Read-only failures are non-destructive and non-critical. After
-            # their single retry is exhausted, preserve the warning and allow
-            # later independent actions to continue.
-            if self._is_read_only(plan_action):
+            if self._can_continue_after_failure(plan_action):
                 continue
 
             return PlanResult(
@@ -227,6 +228,16 @@ class PlanExecutor:
             plan_action.tool,
             plan_action.action,
         ) in cls.READ_ONLY_ACTIONS
+
+    @classmethod
+    def _can_continue_after_failure(
+        cls,
+        plan_action: PlanAction,
+    ) -> bool:
+        return (
+            plan_action.tool,
+            plan_action.action,
+        ) in cls.CONTINUE_AFTER_FAILURE
 
     @staticmethod
     def _success_count(results: list[ActionResult]) -> int:
