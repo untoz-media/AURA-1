@@ -1,0 +1,40 @@
+name: AURA-1 CI
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  planner:
+    name: Intelligent Planner
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install --upgrade pytest
+
+      - name: Compile changed runtime modules
+        run: >-
+          python -m py_compile
+          aura.py
+          aura/agent/intelligent_planner.py
+          aura/agent/planner.py
+          aura/agent/plan_executor.py
+          aura/agent/permission_manager.py
+
+      - name: Run Intelligent Planner tests
+        run: python -m pytest -q tests/test_intelligent_planner.py
