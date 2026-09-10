@@ -46,7 +46,7 @@ jobs:
           aura/agent/permission_manager.py
           scripts/build_release.py
 
-      - name: Run Alpha 2 agent and app tests
+      - name: Run Alpha 2 agent app and release tests
         run: >-
           python -m pytest -q
           tests/test_intelligent_planner.py
@@ -56,3 +56,4 @@ jobs:
           tests/test_system_state.py
           tests/test_web_agent.py
           tests/test_web.py
+          tests/test_release.py
