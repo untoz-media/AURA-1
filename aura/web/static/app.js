@@ -1,38 +1,29 @@
 const $=s=>document.querySelector(s), conversation=$('#conversation'), input=$('#message'), send=$('#send');
-let ready=false,busy=false;
-const toolLabels={calculator:'Calculator',datetime:'Date & time',files:'Files',system_info:'System'};
+let ready=false,busy=false,stateTimer=null;
+const toolLabels={calculator:'Calculator',datetime:'Date & time',files:'Files',system_info:'System',disk_info:'Disk',app_launcher:'Apps',process_manager:'Processes',file_manager:'Folders',system_state:'PC awareness'};
+const capabilityLabels={local_chat:'Local chat',persistent_memory:'Memory',app_launcher:'App launcher',app_discovery:'App discovery',process_manager:'Processes',file_manager:'Files',system_state:'PC awareness',state_awareness:'State-aware',result_recovery:'Safe recovery'};
 function setStatus(data){
   ready=data.state==='ready'; $('#statusDot').className=`dot ${data.state}`;
   $('#statusText').textContent=ready?'Ready':data.state==='error'?'Loading error':'Starting model…';
   $('#modelName').textContent=data.model?data.model.split('/').pop():'Loading'; $('#profileName').textContent=data.profile||'—';
-  if(data.tools) $('#toolList').replaceChildren(...data.tools.map(t=>{const x=document.createElement('span');x.textContent=toolLabels[t]||t;return x;}));
-  input.disabled=!ready; updateSend();
-  setCoreState(ready?'idle':data.state==='error'?'idle':'thinking');
-  if(data.error) addMessage(data.error,'assistant');
+  $('#runtimeName').textContent=data.agent_runtime?`v${data.agent_runtime}`:'—';
+  const labels=data.capabilities||data.tools||[];
+  if(labels.length) $('#toolList').replaceChildren(...labels.map(t=>{const x=document.createElement('span');x.textContent=capabilityLabels[t]||toolLabels[t]||t;return x;}));
+  input.disabled=!ready; updateSend(); setCoreState(ready?'idle':data.state==='error'?'idle':'thinking');
+  if(ready&&!stateTimer){pollSystemState();stateTimer=setInterval(pollSystemState,5000)}
+  if(data.error&&!document.querySelector('.message.system-error')){const row=addMessage(data.error,'assistant');row.classList.add('system-error')}
 }
-function setCoreState(state){
-  document.querySelectorAll('.aura-core').forEach(core=>{core.dataset.auraState=state;core.setAttribute('aria-label',`AURA Core, ${state}`)});
-}
-async function poll(){try{const r=await fetch('/api/status');const d=await r.json();setStatus(d);if(!ready&&d.state!=='error')setTimeout(poll,1000);}catch{setTimeout(poll,1500)}}
+function setCoreState(state){document.querySelectorAll('.aura-core').forEach(core=>{core.dataset.auraState=state;core.setAttribute('aria-label',`AURA Core, ${state}`)})}
+async function poll(){try{const r=await fetch('/api/status');const d=await r.json();setStatus(d);if(!ready&&d.state!=='error')setTimeout(poll,1000)}catch{setTimeout(poll,1500)}}
+async function pollSystemState(){if(!ready)return;try{const r=await fetch('/api/system-state');if(!r.ok)return;const d=await r.json();$('#cpuValue').textContent=`${d.cpu_percent??'—'}%`;$('#ramValue').textContent=`${d.ram?.percentagem_usada??'—'}%`;$('#pressureValue').textContent=d.pressao||'—';$('#pressureValue').dataset.pressure=d.pressao||'normal';const battery=d.bateria;$('#batteryValue').textContent=battery?`${battery.percentagem??'—'}%`:'Desktop';$('#foregroundValue').textContent=d.foreground_app||'—'}catch{}}
 function updateSend(){send.disabled=!ready||busy||!input.value.trim()}
-function addMessage(text,role){
-  const welcome=$('.welcome');if(welcome)welcome.remove();
-  const row=document.createElement('div');row.className=`message ${role}`;
-  const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;
-  if(role==='assistant'){const avatar=document.createElement('div');avatar.className='avatar';avatar.innerHTML='<i></i>';row.append(avatar)}
-  row.append(bubble);conversation.append(row);conversation.scrollTop=conversation.scrollHeight;return row;
-}
+function clearWelcome(){const welcome=$('.welcome');if(welcome)welcome.remove()}
+function addMessage(text,role){clearWelcome();const row=document.createElement('div');row.className=`message ${role}`;const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;if(role==='assistant'){const avatar=document.createElement('div');avatar.className='avatar';avatar.innerHTML='<i></i>';row.append(avatar)}row.append(bubble);conversation.append(row);conversation.scrollTop=conversation.scrollHeight;return row}
+function addCard(className){clearWelcome();const row=document.createElement('div');row.className='message assistant structured';const avatar=document.createElement('div');avatar.className='avatar';avatar.innerHTML='<i></i>';const card=document.createElement('div');card.className=`agent-card ${className}`;row.append(avatar,card);conversation.append(row);conversation.scrollTop=conversation.scrollHeight;return card}
 function typing(){const row=addMessage('','assistant'),b=row.querySelector('.bubble');b.classList.add('typing');b.innerHTML='<span></span><span></span><span></span>';return row}
-async function submit(message){
-  if(!ready||busy||!message.trim())return;busy=true;setCoreState('generating');addMessage(message.trim(),'user');input.value='';input.style.height='auto';updateSend();const loader=typing();
-  try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:message.trim()})});const d=await r.json();loader.remove();addMessage(r.ok?d.response:(d.error||'Something went wrong.'),'assistant');}
-  catch{loader.remove();addMessage('I lost the connection to the local server. Check that the AURA window is still open.','assistant')}
-  finally{busy=false;setCoreState('idle');updateSend();input.focus()}
-}
-$('#composer').addEventListener('submit',e=>{e.preventDefault();submit(input.value)});
-input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,150)+'px';updateSend()});
-input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit(input.value)}});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-prompt]');if(b)submit(b.dataset.prompt)});
-$('#newChat').addEventListener('click',async()=>{if(busy)return;await fetch('/api/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});conversation.replaceChildren();addMessage('Conversation cleared. How can I help now?','assistant');if(innerWidth<761)$('.sidebar').classList.remove('open')});
-$('#menuButton').addEventListener('click',()=>{const open=$('.sidebar').classList.toggle('open');$('#menuButton').setAttribute('aria-expanded',String(open))});
-poll();
+function renderPhases(phases=[]){phases.forEach(phase=>{const card=addCard('plan-card');const head=document.createElement('div');head.className='card-head';const label=document.createElement('span');label.className='card-kicker';label.textContent=phase.label||'Plan';const status=document.createElement('span');status.className=`plan-status ${phase.status||''}`;status.textContent=(phase.status||'ready').replaceAll('_',' ');head.append(label,status);const title=document.createElement('strong');title.textContent=phase.description||'AURA plan';card.append(head,title);const list=document.createElement('ol');list.className='plan-steps';const results=phase.results||[];(phase.actions||[]).forEach((action,i)=>{const li=document.createElement('li');const result=results[i];const icon=document.createElement('span');icon.className='step-icon';icon.textContent=result?(result.success?'✓':'!'):'•';const body=document.createElement('div');const name=document.createElement('b');name.textContent=action.description||`${action.tool}.${action.action}`;body.append(name);if(result?.display){const detail=document.createElement('small');detail.textContent=result.display;body.append(detail)}li.className=result?(result.success?'done':'warning'):'pending';li.append(icon,body);list.append(li)});card.append(list)})}
+function renderConfirmation(data){const c=data.confirmation;if(!c)return;const card=addCard('confirm-card');const kicker=document.createElement('span');kicker.className='card-kicker';kicker.textContent='Permission required';const title=document.createElement('strong');title.textContent=c.description||'Protected action';const detail=document.createElement('p');detail.textContent=c.target?`${c.tool}.${c.action} · ${c.target}`:`${c.tool}.${c.action}`;const actions=document.createElement('div');actions.className='confirm-actions';const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Cancel';const approve=document.createElement('button');approve.className='approve';approve.textContent='Allow once';actions.append(cancel,approve);card.append(kicker,title,detail,actions);cancel.addEventListener('click',()=>resolveConfirmation(c.token,false,card));approve.addEventListener('click',()=>resolveConfirmation(c.token,true,card))}
+function renderReply(data){if(data.phases?.length)renderPhases(data.phases);if(data.response)addMessage(data.response,'assistant');if(data.kind==='confirmation_required')renderConfirmation(data);pollSystemState()}
+async function submit(message){if(!ready||busy||!message.trim())return;busy=true;setCoreState('generating');addMessage(message.trim(),'user');input.value='';input.style.height='auto';updateSend();const loader=typing();try{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:message.trim()})});const d=await r.json();loader.remove();if(r.ok)renderReply(d);else addMessage(d.error||'Something went wrong.','assistant')}catch{loader.remove();addMessage('I lost the connection to the local AURA service. Reopen the app if it was closed.','assistant')}finally{busy=false;setCoreState('idle');updateSend();input.focus()}}
+async function resolveConfirmation(token,approved,card){if(busy)return;busy=true;card.querySelectorAll('button').forEach(b=>b.disabled=true);setCoreState('generating');try{const r=await fetch('/api/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,approved})});const d=await r.json();card.classList.add(approved?'approved':'cancelled');if(r.ok)renderReply(d);else addMessage(d.error||'Confirmation failed.','assistant')}catch{addMessage('I could not reach the local AURA service to confirm that action.','assistant')}finally{busy=false;setCoreState('idle');updateSend();input.focus()}}
+$('#composer').addEventListener('submit',e=>{e.preventDefault();submit(input.value)});input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,150)+'px';updateSend()});input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit(input.value)}});document.addEventListener('click',e=>{const b=e.target.closest('[data-prompt]');if(b)submit(b.dataset.prompt)});$('#newChat').addEventListener('click',async()=>{if(busy)return;await fetch('/api/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});conversation.replaceChildren();addMessage('Conversation cleared. What should we do next?','assistant');if(innerWidth<761)$('.sidebar').classList.remove('open')});$('#menuButton').addEventListener('click',()=>{const open=$('.sidebar').classList.toggle('open');$('#menuButton').setAttribute('aria-expanded',String(open))});poll();
