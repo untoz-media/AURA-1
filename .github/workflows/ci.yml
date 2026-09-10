@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   planner:
-    name: Intelligent Agent Runtime v1.4 + App
+    name: AURA Alpha 2 v1.5 First Run + Agent App
     runs-on: ubuntu-latest
 
     steps:
@@ -33,6 +33,7 @@ jobs:
           aura.py
           aura_web.py
           aura_desktop.py
+          aura/onboarding.py
           aura/web/agent.py
           aura/web/server.py
           aura/tools/system_state.py
@@ -46,7 +47,10 @@ jobs:
           aura/agent/permission_manager.py
           scripts/build_release.py
 
-      - name: Run Alpha 2 agent app and release tests
+      - name: Validate desktop app JavaScript
+        run: node --check aura/web/static/app.js
+
+      - name: Run Alpha 2 agent app first-run and release tests
         run: >-
           python -m pytest -q
           tests/test_intelligent_planner.py
@@ -56,4 +60,6 @@ jobs:
           tests/test_system_state.py
           tests/test_web_agent.py
           tests/test_web.py
+          tests/test_web_setup.py
+          tests/test_onboarding.py
           tests/test_release.py
