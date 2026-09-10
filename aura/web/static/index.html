@@ -9,9 +9,105 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/agent.css">
+  <link rel="stylesheet" href="/onboarding.css">
 </head>
-<body>
-  <main class="shell">
+<body class="setup-active">
+  <section id="onboarding" class="onboarding" aria-live="polite">
+    <div class="setup-shell">
+      <header class="setup-brand">
+        <div class="aura-core aura-core--small" data-aura-state="idle" aria-hidden="true"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
+        <div><strong>AURA-1</strong><small>Alpha 2 · by Untoz</small></div>
+        <span id="setupStepLabel" class="setup-step-label">Welcome</span>
+      </header>
+
+      <div class="setup-progress" aria-hidden="true">
+        <i data-step-dot="welcome" class="active"></i>
+        <i data-step-dot="hardware"></i>
+        <i data-step-dot="model"></i>
+        <i data-step-dot="privacy"></i>
+        <i data-step-dot="ready"></i>
+      </div>
+
+      <main class="setup-content">
+        <article class="setup-step active" data-setup-step="welcome">
+          <div class="aura-core aura-core--hero setup-core" data-aura-state="idle" role="img" aria-label="AURA Core"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
+          <p class="eyebrow">AURA-1 ALPHA 2</p>
+          <h1>AI that lives on your computer.</h1>
+          <p class="setup-lead">AURA runs locally, understands the state of your PC and can carry out approved actions. This setup takes a few steps.</p>
+          <div class="setup-points">
+            <div><b>Local-first</b><span>Your assistant runs on this computer.</span></div>
+            <div><b>State-aware</b><span>AURA can inspect bounded system telemetry.</span></div>
+            <div><b>Permission-controlled</b><span>Protected actions always ask first.</span></div>
+          </div>
+          <div class="setup-actions"><button class="setup-primary" data-next-step="hardware">Set up AURA</button></div>
+        </article>
+
+        <article class="setup-step" data-setup-step="hardware">
+          <p class="eyebrow">STEP 1 OF 4</p>
+          <h1>Computer check</h1>
+          <p class="setup-lead">Before loading the local model, AURA checks only the hardware information needed for compatibility.</p>
+          <div id="hardwareStatus" class="hardware-status loading"><span></span><div><b>Checking this computer…</b><small>CPU, RAM, free storage and local acceleration.</small></div></div>
+          <div id="hardwareGrid" class="hardware-grid" hidden></div>
+          <div id="hardwareNotes" class="setup-notes"></div>
+          <div class="setup-actions split">
+            <button class="setup-secondary" data-next-step="welcome">Back</button>
+            <button id="hardwareContinue" class="setup-primary" data-next-step="model" disabled>Continue</button>
+          </div>
+        </article>
+
+        <article class="setup-step" data-setup-step="model">
+          <p class="eyebrow">STEP 2 OF 4</p>
+          <h1>Choose how AURA thinks</h1>
+          <p class="setup-lead">You can change this later. Balanced is the recommended starting point for most computers.</p>
+          <div id="profileChoices" class="profile-choices"></div>
+          <div class="model-card">
+            <div><span>Local model</span><b id="setupModelName">Qwen3-4B-Instruct-2507</b></div>
+            <p>The model files are not bundled with the app. If they are not already cached, the first start can download several GB. Files stay in the local model cache.</p>
+          </div>
+          <div class="setup-actions split">
+            <button class="setup-secondary" data-next-step="hardware">Back</button>
+            <button class="setup-primary" data-next-step="privacy">Continue</button>
+          </div>
+        </article>
+
+        <article class="setup-step" data-setup-step="privacy">
+          <p class="eyebrow">STEP 3 OF 4</p>
+          <h1>Privacy and control</h1>
+          <p class="setup-lead">AURA needs clear boundaries before it can act on your computer.</p>
+          <label class="consent-card">
+            <input id="privacyConsent" type="checkbox">
+            <span><b>Local processing</b><small>I understand that AURA processes conversations and model inference locally by default, while model files may need to be downloaded from their upstream provider.</small></span>
+          </label>
+          <label class="consent-card">
+            <input id="permissionConsent" type="checkbox">
+            <span><b>Protected actions ask first</b><small>I understand that actions such as closing an application require explicit approval. System pressure never gives AURA permission to perform destructive actions.</small></span>
+          </label>
+          <p class="privacy-detail">AURA's system-awareness layer does not read clipboard contents, window titles, process command lines, environment variables, usernames or file contents for telemetry.</p>
+          <div class="setup-actions split">
+            <button class="setup-secondary" data-next-step="model">Back</button>
+            <button id="prepareAura" class="setup-primary" disabled>Prepare AURA</button>
+          </div>
+        </article>
+
+        <article class="setup-step" data-setup-step="ready">
+          <div class="aura-core aura-core--hero setup-core" data-aura-state="thinking" role="img" aria-label="AURA Core, preparing"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
+          <p class="eyebrow">STEP 4 OF 4</p>
+          <h1 id="readyTitle">Preparing AURA…</h1>
+          <p id="readyMessage" class="setup-lead">Starting the local model. On a first install this can include downloading model files.</p>
+          <div id="modelProgress" class="model-progress"><i></i></div>
+          <div id="setupError" class="setup-error" hidden></div>
+          <div class="setup-actions">
+            <button id="retrySetup" class="setup-secondary" hidden>Retry model start</button>
+            <button id="enterAura" class="setup-primary" hidden>Enter AURA</button>
+          </div>
+        </article>
+      </main>
+
+      <footer class="setup-footer"><span>Runs on this computer</span><span>AURA-1 <b id="setupVersion">0.2.0-alpha.1</b></span></footer>
+    </div>
+  </section>
+
+  <main id="appShell" class="shell" aria-hidden="true">
     <aside id="sidebar" class="sidebar">
       <div class="brand">
         <div class="aura-core aura-core--small" data-aura-state="idle" aria-hidden="true"><i class="core-orbit"></i><i class="core-ring"></i><i class="core-light"></i></div>
