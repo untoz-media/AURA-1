@@ -1,4 +1,4 @@
-"""HTTP contract and local-access tests for the browser interface."""
+"""HTTP contract and local-access tests for the AURA application."""
 
 from __future__ import annotations
 
@@ -17,22 +17,49 @@ class FakeAssistant:
         self.config = SimpleNamespace(model_name="test/model")
         self.settings = SimpleNamespace(active_profile="fast")
         self.persistent_memory = SimpleNamespace(data={"name": "Luis"})
-        self.messages = []
 
     def list_tools(self):
         return [SimpleNamespace(name="calculator")]
 
-    def chat(self, message):
-        self.messages.append(message)
-        return f"Resposta: {message}"
 
-    def clear_memory(self):
+class FakeAgent:
+    RUNTIME_VERSION = "1.4"
+
+    def __init__(self, assistant):
+        self.assistant = assistant
+        self.messages = []
+        self.confirmations = []
+        self.has_pending_confirmation = False
+
+    def capabilities(self):
+        return ["local_chat", "system_state", "state_awareness"]
+
+    def handle_message(self, message):
+        self.messages.append(message)
+        return {"kind": "message", "response": f"Resposta: {message}", "runtime": "1.4"}
+
+    def confirm(self, token, approved):
+        self.confirmations.append((token, approved))
+        return {"kind": "cancelled" if not approved else "action_result", "response": "ok"}
+
+    def clear(self):
         self.messages.clear()
+        self.has_pending_confirmation = False
+
+    def system_state(self):
+        return {
+            "sucesso": True,
+            "cpu_percent": 21.5,
+            "ram": {"percentagem_usada": 47.0},
+            "pressao": "normal",
+            "bateria": None,
+            "foreground_app": "Code.exe",
+        }
 
 
 @pytest.fixture
 def web_server():
-    app = AuraWebApp(assistant_factory=FakeAssistant)
+    app = AuraWebApp(assistant_factory=FakeAssistant, agent_factory=FakeAgent)
     app.load()
     server = create_server(app, port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -61,42 +88,63 @@ def test_status_and_static_interface(web_server):
     _, server = web_server
     status, headers, body = request(server, "GET", "/api/status")
     assert status == 200
-    assert json.loads(body)["state"] == "ready"
+    payload = json.loads(body)
+    assert payload["state"] == "ready"
+    assert payload["agent_runtime"] == "1.4"
+    assert "system_state" in payload["capabilities"]
     assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
     status, _, body = request(server, "GET", "/")
     assert status == 200
     assert b"AURA-1" in body
-    assert b"AI that lives on your computer." in body
+    assert b"Runtime v1.4" in body
+    assert b"Protected actions" in body
+    status, _, body = request(server, "GET", "/agent.css")
+    assert status == 200 and b"confirm-card" in body
     status, _, body = request(server, "GET", "/favicon.svg")
     assert status == 200 and b"#00A3FF" in body
     status, _, body = request(server, "GET", "/fonts/Sora-Variable.ttf")
     assert status == 200 and len(body) > 1000
 
 
-def test_brand_tokens_and_core_states(web_server):
+def test_brand_tokens_and_agent_ui_states(web_server):
     _, server = web_server
     _, _, css = request(server, "GET", "/app.css")
     for token in (b"#05070a", b"#1a1e26", b"#f4f7ff", b"#00a3ff", b"#7b61ff"):
         assert token in css.lower()
     _, _, js = request(server, "GET", "/app.js")
     assert b"setCoreState('generating')" in js
-    assert b"setCoreState('idle')" in js
+    assert b"/api/confirm" in js
+    assert b"/api/system-state" in js
+    assert b"renderPhases" in js
 
 
-def test_chat_and_clear(web_server):
+def test_chat_clear_confirmation_and_system_state(web_server):
     app, server = web_server
     status, _, body = request(server, "POST", "/api/chat", {"message": "Olá"})
     assert status == 200
     assert json.loads(body)["response"] == "Resposta: Olá"
-    assert app.assistant.messages == ["Olá"]
+    assert app.agent.messages == ["Olá"]
+    status, _, body = request(server, "GET", "/api/system-state")
+    assert status == 200
+    assert json.loads(body)["cpu_percent"] == 21.5
+    status, _, body = request(server, "POST", "/api/confirm", {"token": "token-123", "approved": True})
+    assert status == 200
+    assert json.loads(body)["response"] == "ok"
+    assert app.agent.confirmations == [("token-123", True)]
     assert request(server, "POST", "/api/clear", {})[0] == 200
-    assert app.assistant.messages == []
+    assert app.agent.messages == []
 
 
 @pytest.mark.parametrize("payload", [{}, {"message": ""}, {"message": 12}, {"message": "x" * 4097}])
 def test_invalid_chat(web_server, payload):
     _, server = web_server
     assert request(server, "POST", "/api/chat", payload)[0] == 400
+
+
+@pytest.mark.parametrize("payload", [{}, {"token": ""}, {"token": 42, "approved": True}, {"token": "x", "approved": "yes"}])
+def test_invalid_confirmation(web_server, payload):
+    _, server = web_server
+    assert request(server, "POST", "/api/confirm", payload)[0] == 400
 
 
 def test_local_host_and_origin_checks(web_server):
@@ -110,6 +158,7 @@ def test_loading_and_busy_states(web_server):
     app, server = web_server
     app.state = "loading"
     assert request(server, "POST", "/api/chat", {"message": "Olá"})[0] == 503
+    assert request(server, "GET", "/api/system-state")[0] == 503
     app.state = "ready"
     app.chat_lock.acquire()
     try:
