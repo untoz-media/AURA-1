@@ -231,6 +231,61 @@ def test_recovery_does_not_run_for_completed_or_blocked_results():
     assert assistant.runtime.calls == []
 
 
+def test_mixed_destructive_failure_blocks_recovery_entirely():
+    assistant = FakeAssistant(
+        [
+            json.dumps(
+                {
+                    "should_plan": True,
+                    "description": "Retry OBS.",
+                    "actions": [
+                        {
+                            "tool": "app_launcher",
+                            "action": "open",
+                            "arguments": {"target": "OBS"},
+                            "description": "Retry OBS.",
+                        }
+                    ],
+                }
+            )
+        ]
+    )
+    intelligent = IntelligentPlanner(
+        assistant,
+        state_observer=FixedObserver(),
+    )
+    recovery = RecoveryPlanner(intelligent)
+    plan = Plan(
+        request="Abre OBS e fecha o bloco de notas.",
+        description="Mixed plan.",
+        actions=[
+            PlanAction(
+                tool="app_launcher",
+                action="open",
+                arguments={"target": "OBS"},
+            ),
+            PlanAction(
+                tool="process_manager",
+                action="close",
+                arguments={"target": "notepad"},
+            ),
+        ],
+    )
+    result = PlanResult(
+        success=False,
+        status="failed",
+        completed=0,
+        total=2,
+        results=[
+            action_result("app_launcher", "open", success=False, status="error"),
+            action_result("process_manager", "close", success=False, status="failed"),
+        ],
+    )
+
+    assert recovery.create_recovery_plan(plan, result) is None
+    assert assistant.runtime.calls == []
+
+
 def test_recovery_prompt_contains_sanitized_failure_and_fresh_state():
     recovery, assistant, _ = planner_with_response(
         {
