@@ -8,7 +8,7 @@ from scripts import build_release
 
 
 def test_alpha_version():
-    assert __version__ == "0.1.0-alpha.2"
+    assert __version__ == "0.2.0-alpha.1"
 
 
 def test_release_allowlist_includes_desktop_app_and_excludes_private_data():
@@ -20,6 +20,7 @@ def test_release_allowlist_includes_desktop_app_and_excludes_private_data():
         "aura.py",
         "aura_web.py",
         "aura_desktop.py",
+        "iniciar_aura.bat",
         "requirements-runtime.txt",
         "requirements-desktop.txt",
         "aura/web/agent.py",
@@ -39,11 +40,7 @@ def test_release_allowlist_includes_desktop_app_and_excludes_private_data():
     assert not any("__pycache__" in path for path in paths)
 
 
-def test_source_release_builds_zip_and_checksum(tmp_path, monkeypatch):
-    monkeypatch.setattr(build_release, "ROOT", Path(__file__).resolve().parents[1])
-
-    # Keep the repository untouched while exercising the real archive writer.
-    original_path = Path
+def test_source_release_builds_zip_and_checksum(tmp_path):
     output_dir = tmp_path / "dist"
     output_dir.mkdir()
 
@@ -64,6 +61,7 @@ def test_source_release_builds_zip_and_checksum(tmp_path, monkeypatch):
 
     root = build_release.PACKAGE_ROOT
     assert f"{root}/aura_desktop.py" in names
+    assert f"{root}/iniciar_aura.bat" in names
     assert f"{root}/aura/web/agent.py" in names
     assert f"{root}/aura/web/static/agent.css" in names
     assert f"{root}/requirements-desktop.txt" in names
