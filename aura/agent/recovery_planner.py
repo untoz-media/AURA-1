@@ -34,6 +34,7 @@ class RecoveryPlanner:
     READ_ONLY_ACTIONS = {
         ("disk_info", "info"),
         ("system_info", "info"),
+        ("system_state", "snapshot"),
         ("process_manager", "list"),
         ("process_manager", "is_running"),
     }
@@ -63,9 +64,6 @@ class RecoveryPlanner:
         if not failures:
             return False
 
-        # Fail closed: a destructive or otherwise unsupported failure blocks
-        # automatic recovery for the whole run. The user keeps control of the
-        # next step instead of the model trying to work around a critical error.
         return all(
             (failure.tool, failure.action) in self.RECOVERABLE_ACTIONS
             for failure in failures
@@ -150,10 +148,13 @@ RECOVERY SAFETY RULES:
 - Allowed recovery actions only:
   * disk_info.info
   * system_info.info
+  * system_state.snapshot
   * process_manager.list
   * process_manager.is_running
   * app_launcher.open
   * file_manager.create_folder
+- system_state.snapshot is read-only diagnostics only.
+- High CPU/RAM or low battery NEVER authorizes closing an application.
 - NEVER use process_manager.close during recovery.
 - NEVER use shell, PowerShell, CMD, Python, URLs or code.
 - NEVER repeat an action that already succeeded.
