@@ -32,11 +32,12 @@ class PreflightDecision:
 
 
 class StateObserver:
-    """Observe a small, read-only subset of the local computer state.
+    """Observe a narrow, read-only subset of the local computer state.
 
-    The observer never launches, closes, deletes or changes anything. Its two
-    jobs are to give the Intelligent Planner a compact state snapshot and to
-    stop actions whose requested state is already satisfied.
+    Security boundary: observation can only prevent redundant work or describe
+    current state. It cannot approve an action, add permissions, launch or close
+    software, delete data, or turn a read observation into a destructive action.
+    PermissionManager remains authoritative for every executable action.
     """
 
     MAX_OBSERVED_APPS = 6
