@@ -208,13 +208,32 @@ def show_help(ui: AuraConsole) -> None:
     )
 
 
+def render_plan_results(results, ui: AuraConsole) -> None:
+    """Render completed steps and non-critical warnings from one plan."""
+    for action_result in results:
+        if action_result.success:
+            if action_result.result:
+                ui.success(
+                    format_tool_response(
+                        action_result.tool,
+                        action_result.result,
+                    )
+                )
+            continue
+
+        detail = action_result.message or "A ação não foi concluída."
+        ui.warning(
+            f"{action_result.tool}.{action_result.action}: {detail}"
+        )
+
+
 def execute_agent_plan(
     plan,
     plan_executor: PlanExecutor,
     ui: AuraConsole,
 ) -> None:
     # Revalidate every plan immediately before execution. This applies to
-    # deterministic plans and to plans proposed by the local model.
+    # deterministic plans and plans proposed by the local model.
     valid, reason = Planner().validate(plan)
     if not valid:
         ui.error(f"Plano inválido: {reason}")
@@ -223,23 +242,14 @@ def execute_agent_plan(
     ui.plan(plan.description, plan.actions)
     result = plan_executor.execute(plan.actions)
 
-    if result.status == "completed":
-        for action_result in result.results:
-            if action_result.result:
-                ui.success(
-                    format_tool_response(
-                        action_result.tool,
-                        action_result.result,
-                    )
-                )
-        ui.plan_complete(result.completed, result.total)
-        return
+    # A plan can cross several destructive-action boundaries. Each protected
+    # action requires its own explicit confirmation, while earlier results are
+    # preserved and never re-executed.
+    while result.status == "confirmation_required":
+        if result.pending_action is None or result.pending_index is None:
+            ui.error("O plano pediu confirmação sem indicar a ação pendente.")
+            return
 
-    if (
-        result.status == "confirmation_required"
-        and result.pending_action is not None
-        and result.pending_index is not None
-    ):
         action = result.pending_action
         description = action.description or f"{action.tool}.{action.action}"
         confirmed = ui.confirm(
@@ -248,34 +258,27 @@ def execute_agent_plan(
         )
 
         if not confirmed:
-            ui.warning("Plano cancelado.")
+            render_plan_results(result.results, ui)
+            ui.warning("Plano cancelado antes da ação protegida.")
             return
 
-        resumed = plan_executor.execute_confirmed(
+        result = plan_executor.execute_confirmed(
             plan.actions,
             result.pending_index,
+            previous_results=result.results,
         )
 
-        if resumed.status == "completed":
-            for action_result in resumed.results:
-                if action_result.result:
-                    ui.success(
-                        format_tool_response(
-                            action_result.tool,
-                            action_result.result,
-                        )
-                    )
-            ui.plan_complete(resumed.completed, resumed.total)
-            return
-
-        if resumed.status == "confirmation_required":
+    if result.status in {"completed", "completed_with_warnings"}:
+        render_plan_results(result.results, ui)
+        ui.plan_complete(result.completed, result.total)
+        if result.status == "completed_with_warnings":
             ui.warning(
-                "O plano encontrou outra ação que necessita de confirmação."
+                "Plano concluído com avisos: uma ou mais verificações "
+                "de leitura falharam, mas as ações independentes continuaram."
             )
-            return
-
-        ui.error(f"O plano parou com estado: {resumed.status}")
         return
+
+    render_plan_results(result.results, ui)
 
     if result.status == "blocked":
         ui.blocked(
@@ -347,7 +350,7 @@ def main() -> None:
     intelligent_planner = IntelligentPlanner(assistant)
 
     ui.success("AURA-1 está operacional.")
-    ui.info("Alpha 2 Development • Intelligent Agent Runtime Online")
+    ui.info("Alpha 2 Development • Intelligent Agent Runtime v1.1 Online")
 
     while True:
         try:
@@ -376,17 +379,19 @@ def main() -> None:
                 f"Perfil: {assistant.settings.active_profile}\n"
                 f"Memória da conversa: {len(assistant.memory.messages)} mensagens\n"
                 f"Memórias persistentes: {len(assistant.persistent_memory.data)}\n"
+                f"Contexto efémero do Planner: {intelligent_planner.context_size}/3\n"
                 "Agent Runtime: online\n"
                 "Tool Router v2: online\n"
                 "Deterministic Planner: online\n"
-                "Intelligent Planner v1: online\n"
+                "Intelligent Planner v1.1: online\n"
                 "Permission Manager: online"
             )
             continue
 
         if command == "/clear":
             assistant.clear_memory()
-            ui.success("Memória da conversa limpa.")
+            intelligent_planner.clear_context()
+            ui.success("Conversa e contexto efémero do Planner limpos.")
             continue
 
         if command == "/memory":
@@ -500,8 +505,9 @@ def main() -> None:
                 "• Process Manager\n"
                 "• Tool Router v2\n"
                 "• Deterministic Planner\n"
-                "• Intelligent Planner v1\n"
-                "• Plan Executor\n"
+                "• Intelligent Planner v1.1\n"
+                "• Contextual Follow-ups\n"
+                "• Resilient Plan Executor\n"
                 "• Action Executor\n"
                 "• Permission Manager"
             )
@@ -515,6 +521,7 @@ def main() -> None:
             continue
 
         if plan is not None:
+            intelligent_planner.remember_plan(plan)
             execute_agent_plan(plan, plan_executor, ui)
             continue
 
@@ -526,6 +533,7 @@ def main() -> None:
             continue
 
         if routed is not None:
+            intelligent_planner.remember_routed_action(message, routed)
             handle_tool_router_result(routed, tool_router, ui)
             continue
 
