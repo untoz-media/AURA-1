@@ -20,6 +20,7 @@ class ToolRouter:
         self.process_manager = ProcessManagerTool()
         self.system_info = SystemInfoTool()
         self.state_observer = state_observer or StateObserver()
+        self.system_state = self.state_observer.system_state
 
     @staticmethod
     def _normalize_text(text: str) -> str:
@@ -107,6 +108,36 @@ class ToolRouter:
 
         if not normalized:
             return None
+
+        performance_keywords = [
+            "o pc esta lento",
+            "o computador esta lento",
+            "porque e que o pc esta lento",
+            "porque e que o computador esta lento",
+            "porque esta lento",
+            "estado do pc",
+            "estado do computador",
+            "desempenho do pc",
+            "desempenho do computador",
+            "performance do pc",
+            "uso de cpu",
+            "utilizacao de cpu",
+            "quanto cpu estou a usar",
+            "uso de ram",
+            "utilizacao de ram",
+            "quanto ram estou a usar",
+            "memoria usada",
+            "estado da bateria",
+            "quanto tenho de bateria",
+            "nivel da bateria",
+        ]
+
+        if any(keyword in normalized for keyword in performance_keywords):
+            return {
+                "tool": "system_state",
+                "action": "snapshot",
+                "result": self.system_state.snapshot(),
+            }
 
         process_list_keywords = [
             "programas abertos",
