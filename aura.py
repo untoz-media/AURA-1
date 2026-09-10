@@ -130,6 +130,42 @@ def format_tool_response(tool_name: str, result: dict) -> str:
             f"{result.get('cpu_logical', '?')} processadores lógicos."
         )
 
+    if tool_name == "system_state":
+        ram = result.get("ram", {})
+        parts = [
+            f"CPU: {result.get('cpu_percent', '?')}%",
+            (
+                f"RAM: {ram.get('percentagem_usada', '?')}% usada "
+                f"({ram.get('disponivel_gb', '?')} GB disponíveis)"
+            ),
+            f"pressão: {result.get('pressao', 'desconhecida')}",
+        ]
+
+        foreground = result.get("foreground_app")
+        if foreground:
+            parts.append(f"app em primeiro plano: {foreground}")
+
+        battery = result.get("bateria")
+        if battery:
+            power = (
+                "ligado à corrente"
+                if battery.get("ligado_corrente")
+                else "em bateria"
+            )
+            parts.append(
+                f"bateria: {battery.get('percentagem', '?')}% ({power})"
+            )
+
+        top_processes = result.get("processos_memoria") or []
+        if top_processes:
+            top = ", ".join(
+                f"{item.get('nome', 'processo')} {item.get('memoria_mb', '?')} MB"
+                for item in top_processes[:3]
+            )
+            parts.append(f"maior uso de memória: {top}")
+
+        return "Estado do PC — " + "; ".join(parts) + "."
+
     if tool_name == "app_launcher":
         action = result.get("acao")
         if action == "abrir_pasta":
@@ -293,8 +329,8 @@ def execute_agent_plan(
         ui.plan_complete(result.completed, result.total)
         return
 
-    # v1.3: one bounded recovery pass. We deliberately never recurse into
-    # execute_agent_plan(), so a failed recovery cannot create another recovery.
+    # Result-aware recovery remains one bounded pass. We deliberately never
+    # recurse into execute_agent_plan(), so a failed recovery cannot loop.
     if (
         recovery_planner is not None
         and recovery_planner.should_recover(plan, result)
@@ -432,7 +468,7 @@ def main() -> None:
     recovery_planner = RecoveryPlanner(intelligent_planner)
 
     ui.success("AURA-1 está operacional.")
-    ui.info("Alpha 2 Development • Intelligent Agent Runtime v1.3 Online")
+    ui.info("Alpha 2 Development • Intelligent Agent Runtime v1.4 Online")
 
     while True:
         try:
@@ -465,8 +501,9 @@ def main() -> None:
                 "Agent Runtime: online\n"
                 "Tool Router v2: online\n"
                 "Deterministic Planner: online\n"
-                "Intelligent Planner v1.3: online\n"
+                "Intelligent Planner v1.4: online\n"
                 "State Observer: online\n"
+                "System State Monitor: online\n"
                 "Result-aware Recovery: online\n"
                 "Permission Manager: online"
             )
@@ -582,6 +619,7 @@ def main() -> None:
             ui.aura(
                 "AURA Tools\n\n"
                 "• System Info\n"
+                "• System State (CPU/RAM/Battery/Foreground)\n"
                 "• Disk Info\n"
                 "• App Launcher\n"
                 "• App Discovery\n"
@@ -589,7 +627,7 @@ def main() -> None:
                 "• Process Manager\n"
                 "• Tool Router v2\n"
                 "• Deterministic Planner\n"
-                "• Intelligent Planner v1.3\n"
+                "• Intelligent Planner v1.4\n"
                 "• State Observer\n"
                 "• Contextual Follow-ups\n"
                 "• Result-aware Recovery\n"
