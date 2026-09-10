@@ -10,6 +10,7 @@ from aura.tools.disk_info import DiskInfoTool
 from aura.tools.file_manager import FileManagerTool
 from aura.tools.process_manager import ProcessManagerTool
 from aura.tools.system_info import SystemInfoTool
+from aura.tools.system_state import SystemStateTool
 
 
 @dataclass
@@ -42,6 +43,7 @@ class ActionExecutor:
         self.file_manager = FileManagerTool()
         self.process_manager = ProcessManagerTool()
         self.system_info = SystemInfoTool()
+        self.system_state = SystemStateTool()
 
     def execute(
         self,
@@ -51,10 +53,6 @@ class ActionExecutor:
         confirmed: bool = False,
     ) -> ActionResult:
         arguments = arguments or {}
-
-        # --------------------------------------------------
-        # PERMISSION ALLOWLIST
-        # --------------------------------------------------
 
         decision = self.permissions.check(
             tool,
@@ -70,13 +68,6 @@ class ActionExecutor:
                 message=decision.reason,
             )
 
-        # --------------------------------------------------
-        # READ-ONLY STATE PREFLIGHT
-        # --------------------------------------------------
-        # This happens before a destructive confirmation prompt so AURA does
-        # not ask permission to close something that is already closed. A
-        # blocked action never reaches this point.
-
         try:
             preflight = self.state_observer.preflight(
                 tool,
@@ -84,8 +75,6 @@ class ActionExecutor:
                 arguments,
             )
         except Exception:
-            # Observation must never make the runtime unusable. If it fails,
-            # the normal permission/execution path remains the source of truth.
             preflight = None
 
         if preflight is not None and preflight.skip:
@@ -98,10 +87,6 @@ class ActionExecutor:
                 message=preflight.reason,
             )
 
-        # --------------------------------------------------
-        # CONFIRMATION
-        # --------------------------------------------------
-
         if decision.requires_confirmation and not confirmed:
             return ActionResult(
                 success=False,
@@ -111,10 +96,6 @@ class ActionExecutor:
                 message=decision.reason,
                 requires_confirmation=True,
             )
-
-        # --------------------------------------------------
-        # EXECUTION
-        # --------------------------------------------------
 
         try:
             result = self._execute_tool(
@@ -154,10 +135,6 @@ class ActionExecutor:
             result=result,
         )
 
-    # --------------------------------------------------
-    # TOOL DISPATCH
-    # --------------------------------------------------
-
     def _execute_tool(
         self,
         tool: str,
@@ -166,6 +143,9 @@ class ActionExecutor:
     ) -> dict:
         if tool == "system_info" and action == "info":
             return self.system_info.run()
+
+        if tool == "system_state" and action == "snapshot":
+            return self.system_state.snapshot()
 
         if tool == "disk_info" and action == "info":
             path = arguments.get("path", "C:\\")
