@@ -1,143 +1,300 @@
 # AURA-1
 
-**AURA-1** is an open-source local AI assistant developed by **Untoz**.
+<p align="center">
+  <img src="assets/aura-mark.svg" alt="AURA mark" width="220" />
+</p>
 
-AURA is designed to live on your computer, combine local AI with safe desktop tools, and help with everyday work without requiring every request to be sent to a cloud service.
+<p align="center">
+  <strong>AI that lives on your computer.</strong>
+</p>
 
-> **Alpha software:** AURA-1 is under active development. Features, APIs and behavior may change between builds.
+<p align="center">
+  <a href="https://aura.untoz.site/">Official website</a>
+</p>
 
-## Alpha 2 — Intelligent Agent Runtime
+**AURA-1** is a local-first personal AI assistant and experimental AI project developed by **Untoz**.
 
-The current Alpha 2 development branch introduces a layered local-agent runtime:
+The goal is simple: build an assistant that can run on your own computer, understand your system, use local tools, remember useful context, and evolve into a practical desktop AI without depending on massive cloud infrastructure.
 
-1. **Deterministic Planner** for known multi-step workflows.
-2. **Tool Router v2** for fast single-tool requests.
-3. **Intelligent Planner** for flexible natural-language computer actions.
-4. **State Observer** for read-only awareness of relevant local state.
-5. **Plan Executor / Action Executor** for validated execution.
-6. **Permission Manager** for allowlisting and explicit confirmation of protected actions.
+> **Current release:** AURA-1 Alpha 0.1 — public pre-release
 
-### State-aware execution
+---
 
-AURA can inspect a narrow read-only view of the computer before planning and again immediately before an action executes. This lets the runtime avoid redundant work such as reopening an application that is already running, trying to close an application that is already closed, or recreating a folder that already exists.
+## What is AURA-1?
 
-The planning snapshot is only a hint and may become stale. The execution-time preflight is authoritative. State observation never grants permissions, never authorizes cleanup or deletion, and never turns a read observation into a destructive action.
+AURA-1 is the first public generation of the AURA assistant.
 
-Examples:
+It combines a local language model runtime with an Untoz-built assistant layer that provides the interface, memory, orchestration, tools, system integration and product experience around the model.
+
+AURA-1 is designed around a **local-first** philosophy:
+
+- Runs on the user's own computer
+- Keeps local interaction as the default
+- Can access approved local tools and system information
+- Does not require Untoz to operate a large GPU cloud for basic use
+- Is designed to become more capable through modular tools and future local models
+
+The current Alpha is experimental and is intended for early testing, development and feedback.
+
+---
+
+## AURA-1 Alpha 0.1
+
+**Alpha 0.1** is the first public pre-release of AURA-1.
+
+Current capabilities include:
+
+- Local AI chat
+- Browser-based local interface
+- Terminal interface
+- Persistent assistant memory
+- Calculator tools
+- Date and time tools
+- System information tools
+- Controlled access to project file names
+- Local-only web interface binding
+- Support for English and European Portuguese interactions
+
+AURA-1 is still in active development. Features, behaviour, UI, model configuration and compatibility may change between Alpha releases.
+
+---
+
+## Current AI model
+
+AURA-1 Alpha 0.1 currently uses:
+
+`Qwen/Qwen3-4B-Instruct-2507`
+
+The current Alpha uses the upstream model weights without an Untoz-trained AURA checkpoint.
+
+Untoz currently provides the **AURA identity, interface, assistant logic, memory, orchestration and tools** around the model.
+
+For transparency, **AURA-1 Alpha 0.1 should not be described as a separately trained Untoz foundation model**.
+
+A separately trained AURA-1 model is planned as a future project milestone.
+
+---
+
+## Project information
+
+| | |
+|---|---|
+| **Name** | AURA-1 |
+| **Developer** | Untoz |
+| **Project family** | AURA |
+| **Website** | [aura.untoz.site](https://aura.untoz.site/) |
+| **Current release** | Alpha 0.1 |
+| **Release type** | Public pre-release |
+| **Architecture** | Local-first personal AI assistant |
+| **Current runtime model** | Qwen3-4B-Instruct-2507 |
+| **Target model size** | ~4B parameters |
+| **Planned fine-tuning approach** | QLoRA |
+| **Primary language** | English |
+| **Additional focus** | European Portuguese |
+| **Runtime target** | Local inference / Ollama-compatible workflows |
+
+---
+
+## Run AURA-1 locally
+
+### Web interface
+
+On Windows, double-click:
 
 ```text
-You: Prepara-me para editar vídeo.
-AURA: observes relevant application and disk state -> plans only the actions still needed
-
-You: Abre o OBS.
-AURA: OBS já estava em execução — não voltei a abrir.
-
-You: Fecha o Bloco de Notas.
-AURA: if already closed, no destructive confirmation is requested
+iniciar_aura_web.bat
 ```
 
-## Safety model
-
-AURA does not give the local model unrestricted access to the operating system. The model proposes only structured actions from a strict allowlist. Shell, PowerShell and CMD execution are not exposed to the planner. Unknown tools, unexpected arguments and invalid structured plans are rejected.
-
-Protected actions, such as terminating a running process, still require explicit confirmation. Each destructive action in a multi-step plan requires its own confirmation.
-
-## Current agent actions
-
-The Alpha 2 planner can currently propose:
-
-- `disk_info.info`
-- `system_info.info`
-- `app_launcher.open`
-- `process_manager.list`
-- `process_manager.is_running`
-- `process_manager.close`
-- `file_manager.create_folder`
-
-This list is intentionally small while the agent runtime is being hardened.
-
-## Context and memory
-
-AURA keeps normal conversation memory and persistent user memory separate from agent-planning context. The Intelligent Planner uses a small ephemeral context window for direct follow-ups such as “fecha-o” or “abre também o Notion”. That context is not written to persistent memory and is cleared with `/clear`.
-
-## Local model
-
-AURA-1 currently targets a local Qwen-based runtime. Install a PyTorch build appropriate for your hardware, then install the runtime dependencies:
+Or start it manually:
 
 ```powershell
-python -m pip install -r requirements-runtime.txt
+python aura_web.py
 ```
 
-The project is designed to support local execution on consumer hardware. Performance depends heavily on the selected model, quantization and GPU/CPU configuration.
+The local interface opens at:
 
-## Run the terminal assistant
+```text
+http://127.0.0.1:8765
+```
+
+Keep the terminal window open while using AURA-1.
+
+The first startup may take longer while the local model is loaded into memory.
+
+The web interface is bound to the local computer by default and does not accept external network connections.
+
+To use another port:
+
+```powershell
+python aura_web.py --port 9000
+```
+
+### Terminal interface
+
+The terminal version is also available:
 
 ```powershell
 python aura.py
 ```
 
-Useful commands include:
+---
 
-```text
-/help
-/info
-/memory
-/memory-search TEXTO
-/remember CHAVE VALOR
-/forget CHAVE
-/clear-memory
-/profiles
-/profile fast|balanced|deep
-/settings
-/tools
-/clear
-/exit
-```
+## Installation
 
-## Browser interface
+AURA-1 is currently aimed primarily at Windows development and testing environments.
 
-AURA also includes a local browser interface. See [`docs/web.md`](docs/web.md) for setup information, current functionality and limitations.
-
-## Testing
-
-The focused Alpha 2 agent suite validates the Intelligent Planner, resilient plan execution and state-aware preflight without loading the real Qwen model:
+Install a PyTorch build appropriate for your hardware, then install the runtime dependencies:
 
 ```powershell
-python -m pytest -q tests/test_intelligent_planner.py tests/test_plan_executor.py tests/test_state_observer.py
+python -m pip install -r requirements-runtime.txt
 ```
 
-The GitHub Actions workflow also compiles the relevant runtime modules before running these tests.
+See [`docs/web.md`](docs/web.md) for additional setup information, current functionality and limitations.
+
+---
+
+## Local-first architecture
+
+AURA-1 is being built around the idea that useful personal AI should be able to operate directly on consumer hardware.
+
+```text
+AURA-1 Interface
+       │
+       ▼
+AURA Assistant Layer
+       │
+       ├── Memory
+       ├── Tools
+       ├── System integration
+       └── Orchestration
+       │
+       ▼
+Local AI Runtime
+       │
+       ▼
+CPU / GPU on the user's computer
+```
+
+This architecture allows AURA to grow without requiring every interaction to be processed by centralized Untoz servers.
+
+Future versions may introduce optional hybrid or cloud-assisted capabilities, while maintaining local-first operation as a core part of the project.
+
+---
+
+## Development goals
+
+AURA-1 is intended to become a compact, capable and practical personal assistant that is deeply integrated with the computer it runs on.
+
+The project prioritizes:
+
+- Local execution
+- Practical assistant capabilities
+- System and tool integration
+- Privacy-conscious architecture
+- Strong European Portuguese support
+- Efficient operation on consumer hardware
+- Transparent development
+- A modular architecture that can improve over time
+
+AURA-1 is **not intended to compete directly with frontier-scale cloud models**.
+
+Its goal is different: to become a useful AI that belongs on your computer.
+
+---
+
+## Roadmap
+
+- [x] **M001** — Project initialization
+- [x] **Alpha 0.1** — First public AURA application pre-release
+- [ ] **M002** — AURA Dataset v0.1
+- [ ] **M003** — First QLoRA training
+- [ ] **M004** — First separately trained AURA-1 model checkpoint
+- [ ] **M005** — Evaluation and benchmarks
+- [ ] **M006** — Expanded local runtime / Ollama integration
+- [ ] **M007** — Native desktop integration
+- [ ] **M008** — Hugging Face publication
+- [ ] **M009** — Broader open-source release
+
+The roadmap is experimental and may change as AURA develops.
+
+---
 
 ## Repository structure
 
 ```text
-aura/
-  agent/
-    action_executor.py
-    intelligent_planner.py
-    permission_manager.py
-    plan_executor.py
-    planner.py
-    state_observer.py
-    tool_router.py
-  core/
-  memory/
-  model/
-  tools/
-  ui/
-tests/
-docs/
-scripts/
+AURA-1/
+├── aura.py
+├── aura_web.py
+├── aura/
+├── assets/
+│   └── aura-mark.svg
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── README.md
+├── training/
+│   ├── train.py
+│   ├── config.yaml
+│   └── requirements.txt
+├── evaluation/
+│   ├── benchmark.py
+│   └── prompts.json
+├── inference/
+│   └── test_model.py
+├── ollama/
+│   └── Modelfile
+├── docs/
+│   ├── architecture.md
+│   ├── dataset.md
+│   ├── roadmap.md
+│   └── web.md
+├── MODEL_CARD.md
+├── requirements-runtime.txt
+└── LICENSE
 ```
-
-## Project status
-
-AURA-1 is experimental and should not yet be treated as a fully autonomous desktop agent. The current engineering goal is controlled local agency: observe a narrow state, build a validated plan, ask permission where needed, execute through explicit tools, and fail safely.
-
-## License
-
-See [`LICENSE`](LICENSE), [`NOTICE`](NOTICE) and [`MODEL_CARD.md`](MODEL_CARD.md) for project licensing and model information.
 
 ---
 
-Developed by **Untoz**.
+## Brand
+
+**AURA-1** is part of the Untoz technology ecosystem.
+
+**Brand line:**
+
+> AI that lives on your computer.
+
+AURA is designed to feel calm, precise, local and deeply integrated with the device it runs on.
+
+---
+
+## Alpha warning
+
+AURA-1 Alpha 0.1 is experimental pre-release software.
+
+You should expect:
+
+- Bugs
+- Incomplete features
+- Performance differences between computers
+- Model limitations and incorrect responses
+- Breaking changes between Alpha versions
+
+Do not rely on AURA-1 Alpha for critical, safety-sensitive or irreversible tasks.
+
+---
+
+## License
+
+The final project license will be defined before the first public AURA-trained model release.
+
+Until then, the software, model, dataset and third-party dependency licenses must be considered separately.
+
+The current runtime model remains subject to its own upstream license and terms.
+
+---
+
+## About Untoz
+
+AURA-1 is developed by **Untoz** as part of its technology and AI projects.
+
+**AURA-1 Alpha 0.1 marks the beginning of the public AURA journey.**
