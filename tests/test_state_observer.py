@@ -5,6 +5,7 @@ import json
 from aura.agent.action_executor import ActionExecutor
 from aura.agent.intelligent_planner import IntelligentPlanner
 from aura.agent.state_observer import PreflightDecision, StateObserver
+from aura.agent.tool_router import ToolRouter
 
 
 class FakeProcessManager:
@@ -68,6 +69,11 @@ class FakeRuntime:
 class FakeAssistant:
     def __init__(self, response):
         self.runtime = FakeRuntime(response)
+
+
+class BoomLauncher:
+    def run(self, _target):
+        raise AssertionError("launcher must not run when state is already satisfied")
 
 
 def test_observe_request_reports_apps_and_low_disk():
@@ -195,6 +201,53 @@ def test_blocked_action_never_reaches_state_observer():
     assert result.success is False
     assert result.status == "blocked"
     assert observer.preflight_calls == []
+
+
+def test_tool_router_fast_path_does_not_reopen_running_app():
+    observer = FixedObserver(
+        decision=PreflightDecision(
+            skip=True,
+            reason="OBS já está em execução.",
+            result={
+                "sucesso": True,
+                "acao": "estado_satisfeito",
+                "estado": "already_running",
+                "target": "obs",
+            },
+        )
+    )
+    router = ToolRouter(state_observer=observer)
+    router.app_launcher = BoomLauncher()
+
+    routed = router.route("Abre o OBS")
+
+    assert routed is not None
+    assert routed["tool"] == "app_launcher"
+    assert routed["result"]["estado"] == "already_running"
+    assert len(observer.preflight_calls) == 1
+
+
+def test_tool_router_does_not_confirm_close_for_already_closed_app():
+    observer = FixedObserver(
+        decision=PreflightDecision(
+            skip=True,
+            reason="Já está fechado.",
+            result={
+                "sucesso": True,
+                "acao": "estado_satisfeito",
+                "estado": "already_closed",
+                "target": "notepad",
+            },
+        )
+    )
+    router = ToolRouter(state_observer=observer)
+
+    routed = router.route("Fecha o Bloco de Notas")
+
+    assert routed is not None
+    assert routed["action"] == "close"
+    assert routed.get("requires_confirmation") is None
+    assert routed["result"]["estado"] == "already_closed"
 
 
 def test_intelligent_planner_receives_read_only_state_snapshot():
