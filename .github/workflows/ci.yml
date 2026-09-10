@@ -33,6 +33,7 @@ jobs:
           aura.py
           aura/agent/action_executor.py
           aura/agent/intelligent_planner.py
+          aura/agent/recovery_planner.py
           aura/agent/state_observer.py
           aura/agent/tool_router.py
           aura/agent/planner.py
@@ -44,4 +45,5 @@ jobs:
           python -m pytest -q
           tests/test_intelligent_planner.py
           tests/test_plan_executor.py
+          tests/test_recovery_planner.py
           tests/test_state_observer.py
