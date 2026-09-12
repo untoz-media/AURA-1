@@ -7,6 +7,7 @@ from aura.tools.router import ToolCall, ToolRouter
 from aura.tools.system_info import SystemInfoTool
 from aura.tools.storage import StorageAnalyzerTool
 from aura.tools.files import FileTool
+from aura.tools.image_generation import ImageGenerationTool
 
 __all__ = [
     "Tool",
@@ -19,4 +20,5 @@ __all__ = [
     "SystemInfoTool",
     "StorageAnalyzerTool",
     "FileTool",
+    "ImageGenerationTool",
 ]
